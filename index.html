@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>你的胆子真的是肥嘟嘟的</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛵</text></svg>"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+      }
+      body {
+        background: radial-gradient(circle at 50% 30%, #1b2026, #0a0c0f 75%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      canvas {
+        /* 保持 480:800 逻辑比例, 同时兼容横竖屏 */
+        width: min(100vw, 60vh);
+        aspect-ratio: 3 / 5;
+        background: #171a1d;
+        border-radius: 6px;
+        box-shadow:
+          0 0 0 1px #2a2f36,
+          0 24px 80px rgba(0, 0, 0, 0.55);
+        touch-action: none; /* 禁止浏览器手势, 保证拖动跟手 */
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <!-- 经典 script 按依赖顺序加载(共享全局作用域), 保持 file:// 双击可玩 -->
+    <script src="src/core/utils.js"></script>
+    <script src="src/core/config.js"></script>
+    <script src="src/core/state.js"></script>
+    <script src="src/core/canvas.js"></script>
+    <script src="src/core/assets.js"></script>
+    <script src="src/core/input.js"></script>
+    <script src="src/fx/smoke.js"></script>
+    <script src="src/fx/boom.js"></script>
+    <script src="src/fx/floattext.js"></script>
+    <script src="src/entities/player.js"></script>
+    <script src="src/entities/enemy.js"></script>
+    <script src="src/entities/pickup.js"></script>
+    <script src="src/entities/customer.js"></script>
+    <script src="src/entities/shop.js"></script>
+    <script src="src/systems/zone.js"></script>
+    <script src="src/systems/collision.js"></script>
+    <script src="src/systems/weapons.js"></script>
+    <script src="src/entities/police.js"></script>
+    <script src="src/systems/gameflow.js"></script>
+    <script src="src/ui/hud.js"></script>
+    <script src="src/main.js"></script>
+  </body>
+</html>
