@@ -7,114 +7,18 @@
 let customer = null; // 当前路边客户 { x, y, side, demand, frame, resolved }
 let nextCustomerDist = CUSTOMER_DELAY_FIRST_M * PX_PER_M; // 下一个客户出现的距离阈值(px)
 
-/* 客户图集: 加载时逐帧检测包围盒——贴图带外余量, 以内容为中心切割, 适应任意布局 */
+/* 客户图集: 已离线裁切为 5×3 均匀网格(每格居中一个客户), 直接按格切分;
+ * 剔除最左边一列(该列角色有问题), 实际使用 4×3 = 12 个客户 */
 const CUS_FRAMES = []; // [{x, y, w, h}] 行主序
 function detectCustomerFrames() {
-  try {
-    const c = document.createElement('canvas');
-    c.width = IMG.customer.naturalWidth;
-    c.height = IMG.customer.naturalHeight;
-    const c2d = c.getContext('2d', { willReadFrequently: true });
-    c2d.drawImage(IMG.customer, 0, 0);
-    const d = c2d.getImageData(0, 0, c.width, c.height).data;
-    const iw = c.width,
-      ih = c.height;
-    /* 16px 采样网格 + 连通域分析, 得到每个角色的包围盒 */
-    const s = 16;
-    const gw = Math.ceil(iw / s),
-      gh = Math.ceil(ih / s);
-    const grid = new Uint8Array(gw * gh);
-    for (let gy = 0; gy < gh; gy++) {
-      for (let gx = 0; gx < gw; gx++) {
-        let has = false;
-        for (let y = gy * s; y < (gy + 1) * s && y < ih && !has; y += 2) {
-          for (let x = gx * s; x < (gx + 1) * s && x < iw; x += 2) {
-            /* 阈值 40: 滤掉降采样后透明间隙里的重采样晕影(角色本体是不透明的) */
-            if (d[(y * iw + x) * 4 + 3] > 40) {
-              has = true;
-              break;
-            }
-          }
-        }
-        grid[gy * gw + gx] = has ? 1 : 0;
-      }
-    }
-    /* BFS 连通域 */
-    const seen = new Uint8Array(gw * gh);
-    const stack = [];
-    const boxes = [];
-    for (let i = 0; i < gw * gh; i++) {
-      if (!grid[i] || seen[i]) continue;
-      let minX = gw,
-        minY = gh,
-        maxX = 0,
-        maxY = 0;
-      seen[i] = 1;
-      stack.push(i);
-      while (stack.length) {
-        const p = stack.pop();
-        const px = p % gw,
-          py = (p / gw) | 0;
-        if (px < minX) minX = px;
-        if (px > maxX) maxX = px;
-        if (py < minY) minY = py;
-        if (py > maxY) maxY = py;
-        if (px + 1 < gw && grid[p + 1] && !seen[p + 1]) {
-          seen[p + 1] = 1;
-          stack.push(p + 1);
-        }
-        if (px > 0 && grid[p - 1] && !seen[p - 1]) {
-          seen[p - 1] = 1;
-          stack.push(p - 1);
-        }
-        if (py + 1 < gh && grid[p + gw] && !seen[p + gw]) {
-          seen[p + gw] = 1;
-          stack.push(p + gw);
-        }
-        if (py > 0 && grid[p - gw] && !seen[p - gw]) {
-          seen[p - gw] = 1;
-          stack.push(p - gw);
-        }
-      }
-      const bx = Math.max(0, minX * s - 2);
-      const by = Math.max(0, minY * s - 2);
-      boxes.push({
-        x: bx,
-        y: by,
-        w: Math.min(iw - bx, (maxX - minX + 1) * s + 4),
-        h: Math.min(ih - by, (maxY - minY + 1) * s + 4),
-      });
-    }
-    /* 合并同行的碎块(同一角色被拆成多个连通域的情况);
-     * 容差按图集宽度自适应: 防止降采样后的图集把相邻角色误合并 */
-    const mergeTol = Math.max(8, iw * 0.02);
-    boxes.sort((a, b) => a.y - b.y || a.x - b.x);
-    for (let i = 0; i < boxes.length - 1; i++) {
-      const a = boxes[i],
-        b = boxes[i + 1];
-      if (!a || !b) continue;
-      if (b.x < a.x + a.w + mergeTol && b.y < a.y + a.h && b.y + b.h > a.y) {
-        const x2 = Math.min(a.x, b.x);
-        const y2 = Math.min(a.y, b.y);
-        a.x = x2;
-        a.y = y2;
-        a.w = Math.max(a.x + a.w, b.x + b.w) - x2;
-        a.h = Math.max(a.y + a.h, b.y + b.h) - y2;
-        boxes[i + 1] = null;
-      }
-    }
-    for (const b of boxes) if (b) CUS_FRAMES.push(b);
-    CUS_FRAMES.sort((a, b) => a.y - b.y || a.x - b.x);
-  } catch (_) {
-    /* 分析失败时回退: 按 5×5 均分 */
-    const iw = IMG.customer.naturalWidth,
-      ih = IMG.customer.naturalHeight;
-    const cw = iw / 5,
-      ch = ih / 5;
-    for (let r = 0; r < 5; r++) {
-      for (let col = 0; col < 5; col++) {
-        CUS_FRAMES.push({ x: col * cw, y: r * ch, w: cw, h: ch });
-      }
+  const iw = IMG.customer.naturalWidth;
+  const ih = IMG.customer.naturalHeight;
+  const cw = iw / 5;
+  const ch = ih / 3;
+  CUS_FRAMES.length = 0;
+  for (let r = 0; r < 3; r++) {
+    for (let c = 1; c < 5; c++) {
+      CUS_FRAMES.push({ x: c * cw, y: r * ch, w: cw, h: ch });
     }
   }
 }

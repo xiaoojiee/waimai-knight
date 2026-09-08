@@ -2,7 +2,7 @@
 
 /* 水泥区店铺(卖装备)与饭店(卖外卖) */
 
-/* global game, assets, PX_PER_M, SHOP_DELAY_FIRST_M, SHOP_INTERVAL_MIN_M, SHOP_INTERVAL_MAX_M, WEAPONS, player, BOUNDS, input, JOY_RADIUS, addFloatText, REST_DELAY_FIRST_M, REST_INTERVAL_MIN_M, REST_INTERVAL_MAX_M, FOOD_BUY_PRICE, FOOD_BUNDLE, ctx, fillRR, H */
+/* global game, assets, PX_PER_M, SHOP_DELAY_FIRST_M, SHOP_INTERVAL_MIN_M, SHOP_INTERVAL_MAX_M, WEAPONS, SHOP_FRAMES, player, BOUNDS, input, JOY_RADIUS, addFloatText, REST_DELAY_FIRST_M, REST_INTERVAL_MIN_M, REST_INTERVAL_MAX_M, FOOD_BUY_PRICE, FOOD_BUNDLE, ctx, fillRR, H, IMG, CEMENT_X, W, ROAD, rr */
 
 let shop = null; // 当前店铺 { type, x, y, buyCd }
 let nextShopDist = SHOP_DELAY_FIRST_M * PX_PER_M; // 下一个店铺出现的距离阈值(px)
@@ -11,7 +11,7 @@ function spawnShop() {
   const types = ['dagger', 'pistol', 'rifle', 'shield'];
   shop = {
     type: types[Math.floor(Math.random() * types.length)],
-    x: 342 + Math.random() * 104, // 水泥区中间
+    x: CEMENT_X + (W - CEMENT_X) / 2, // 水泥区正中间, 店铺占满水泥地面
     y: -60,
     buyCd: 0,
   };
@@ -65,20 +65,43 @@ function buyWeapon() {
   scheduleShop();
 }
 
+/* 购买区提示: 绿色蒙板覆盖在店铺旁的路边窄条上 */
+function drawBuyZone(y) {
+  const zw = 56; // 路边窄条(略加宽)
+  const zh = 180; // 与购买触发范围(±90)一致
+  const zx = ROAD.left + ROAD.width - zw + 26; // 右移压进水泥区, 弥补店铺贴图的透明余量, 与门面相连
+  const zy = y - zh / 2;
+  ctx.fillStyle = 'rgba(74,222,128,' + (0.15 + 0.06 * Math.sin(game.time * 5)) + ')';
+  fillRR(zx, zy, zw, zh, 10, ctx.fillStyle);
+  ctx.strokeStyle = 'rgba(74,222,128,0.45)';
+  ctx.lineWidth = 2;
+  rr(zx, zy, zw, zh, 10);
+  ctx.stroke();
+}
+
 /* ---- 店铺绘制 ---- */
 function drawShop() {
   if (!shop) return;
   const def = WEAPONS[shop.type];
-  const s = 60;
-  /* 色块店铺 + 文字 */
-  fillRR(shop.x - s / 2, shop.y - s / 2, s, s, 10, def.color);
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'center';
-  ctx.font = "bold 18px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText(def.label, shop.x, shop.y + 6);
+  const s = 160; // 占满右侧水泥地面
+  if (assets.shop) {
+    /* 店铺贴图(3×3 图集对应帧) */
+    const fw = IMG.shop.naturalWidth / 3;
+    const fh = IMG.shop.naturalHeight / 3;
+    const f = SHOP_FRAMES[shop.type];
+    ctx.drawImage(IMG.shop, f[0] * fw + 2, f[1] * fh + 2, fw - 4, fh - 4, shop.x - s / 2, shop.y - s / 2, s, s);
+  } else {
+    /* 回退: 色块 + 文字 */
+    fillRR(shop.x - s / 2, shop.y - s / 2, s, s, 10, def.color);
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.font = "bold 18px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.fillText(def.label, shop.x, shop.y + 6);
+  }
   /* 价格牌 */
   fillRR(shop.x - 26, shop.y + s / 2 - 4, 52, 18, 9, 'rgba(10,12,15,0.75)');
   ctx.fillStyle = '#ffd23f';
+  ctx.textAlign = 'center';
   ctx.font = "bold 12px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.fillText('$' + def.price, shop.x, shop.y + s / 2 + 9);
   /* 靠近提示 */
@@ -87,6 +110,8 @@ function drawShop() {
     ctx.font = "bold 13px 'PingFang SC','Microsoft YaHei',sans-serif";
     ctx.fillText('→ 靠右购买', shop.x, shop.y - s / 2 - 10);
   }
+  /* 绿色购买区蒙板(覆盖在店铺旁的路面上) */
+  drawBuyZone(shop.y);
 }
 
 let restaurant = null; // 当前饭店 { x, y, buyCd }
@@ -94,7 +119,7 @@ let nextRestDist = REST_DELAY_FIRST_M * PX_PER_M; // 下一个饭店出现的距
 
 function spawnRestaurant() {
   restaurant = {
-    x: 342 + Math.random() * 104, // 水泥区中间
+    x: CEMENT_X + (W - CEMENT_X) / 2, // 水泥区正中间, 占满水泥地面
     y: -60,
     buyCd: 0,
   };
@@ -149,16 +174,34 @@ function buyFood() {
 }
 function drawRestaurant() {
   if (!restaurant) return;
-  const s = 60;
-  /* 色块饭店 + 文字 */
-  fillRR(restaurant.x - s / 2, restaurant.y - s / 2, s, s, 10, '#e67e22');
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'center';
-  ctx.font = "bold 18px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('饭店', restaurant.x, restaurant.y + 6);
+  const s = 160; // 占满右侧水泥地面
+  if (assets.shop) {
+    /* 饭店贴图(3×3 图集 0-0 帧) */
+    const fw = IMG.shop.naturalWidth / 3;
+    const fh = IMG.shop.naturalHeight / 3;
+    ctx.drawImage(
+      IMG.shop,
+      2,
+      2,
+      fw - 4,
+      fh - 4,
+      restaurant.x - s / 2,
+      restaurant.y - s / 2,
+      s,
+      s,
+    );
+  } else {
+    /* 回退: 色块 + 文字 */
+    fillRR(restaurant.x - s / 2, restaurant.y - s / 2, s, s, 10, '#e67e22');
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.font = "bold 18px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.fillText('饭店', restaurant.x, restaurant.y + 6);
+  }
   /* 价格牌 */
-  fillRR(restaurant.x - 26, restaurant.y + s / 2 - 4, 52, 18, 9, 'rgba(10,12,15,0.75)');
+  fillRR(restaurant.x - 30, restaurant.y + s / 2 - 4, 60, 18, 9, 'rgba(10,12,15,0.75)');
   ctx.fillStyle = '#ffd23f';
+  ctx.textAlign = 'center';
   ctx.font = "bold 12px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.fillText(
     FOOD_BUNDLE + '个 $' + FOOD_BUY_PRICE * FOOD_BUNDLE,
@@ -171,4 +214,6 @@ function drawRestaurant() {
     ctx.font = "bold 13px 'PingFang SC','Microsoft YaHei',sans-serif";
     ctx.fillText('→ 靠右购买', restaurant.x, restaurant.y - s / 2 - 10);
   }
+  /* 绿色购买区蒙板(覆盖在饭店旁的路面上) */
+  drawBuyZone(restaurant.y);
 }

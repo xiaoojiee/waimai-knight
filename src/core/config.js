@@ -12,14 +12,14 @@ const TILE_H = 852; // 道路贴图缩放后高度(1152×2048 贴图按画布宽
 const LOOP = TILE_H * 20; // 场景无缝循环长度(20 块贴图)
 const PX_PER_M = 20; // 20px 计 1m, 仅用于里程换算
 const BASE_SPEED = 240; // 场景默认前进速度 px/s
-const SPEED_MIN = 55,
+const SPEED_MIN = 30,
   SPEED_MAX = 410; // 速度下限/上限: 向后刹得更慢, 向前冲得略低
 
 /* 碰撞伤害: 侧面相撞双方相同; 前后相撞前方(世界前进方向=屏幕上方)受伤更多 */
 const DMG_SIDE = 15;
 const DMG_FRONT = 24;
 const DMG_REAR = 8;
-const HIT_CD = 1; // 玩家受击无敌时间(秒), 防止一帧内多次结算
+const HIT_CD = 0.2; // 玩家受击无敌时间(秒), 防止一帧内多次结算
 const ENEMY_HIT_CD = 0.2; // 敌方受击无敌时间(秒), 保证连续子弹/撞击可连续结算
 const ENEMY_MAX = 3; // 同屏敌骑手上限
 const HEAL_AMT = 25; // 点击外卖按钮回复的血量
@@ -27,7 +27,7 @@ const RIDER_SCALE = 1.5; // 玩家贴图缩放倍数
 const FOOD_SIZE = 104; // 外卖掉落绘制尺寸
 const ENEMY_DIE_TIME = 0.9; // 敌人倒下动画时长(秒)
 const START_FOOD = 3; // 初始外卖数量
-const FOOD_PRICE = 15; // 送达每个外卖的报酬
+const FOOD_PRICE = 20; // 送达每个外卖的报酬
 const FOOD_FINE = 8; // 缺少每个外卖的罚款
 const CUSTOMER_DELAY_FIRST_M = 120; // 开局行驶多远后可能出现第一个客户(米)
 const CUSTOMER_INTERVAL_MIN_M = 60; // 客户间隔距离下限(米)
@@ -67,6 +67,14 @@ const WEAPONS = {
     rate: 0.3,
   },
   shield: { frame: [2, 2], price: 60, label: '盾牌', color: '#8e44ad', baseRot: 0, charges: 3 },
+};
+/* 店铺图集 3×3 帧位(行主序): 外卖店 / 刀店 / 手枪店 / 步枪店 / 护盾店 */
+const SHOP_FRAMES = {
+  restaurant: [0, 0],
+  dagger: [0, 1],
+  pistol: [0, 2],
+  rifle: [1, 0],
+  shield: [1, 1],
 };
 const SHOP_DELAY_FIRST_M = 80; // 开局行驶多远后出现第一个店铺(米)
 const SHOP_INTERVAL_MIN_M = 150; // 店铺间隔下限(米)

@@ -16,6 +16,7 @@ const IMG = {
   sign: new Image(),
   police: new Image(),
   spike: new Image(),
+  shop: new Image(),
 };
 const assets = {
   road: false,
@@ -29,6 +30,7 @@ const assets = {
   sign: false,
   police: false,
   spike: false,
+  shop: false,
 };
 let ready = false;
 
@@ -101,3 +103,7 @@ IMG.spike.onload = () => {
   SPIKE_BOX = detectSpriteBox(IMG.spike); // 精确裁切
 }; // 路钉可选
 IMG.spike.src = 'assets/贴图/路钉.png';
+IMG.shop.onload = () => {
+  assets.shop = true;
+}; // 店铺可选
+IMG.shop.src = 'assets/贴图/店铺.png';
