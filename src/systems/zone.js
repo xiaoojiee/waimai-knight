@@ -96,9 +96,9 @@ function updateZone(dt) {
  * 停止犯罪一段时间后槽衰减, 槽空则降一级(最低 1 级) */
 function updateCrime(dt) {
   let gain = 0;
-  /* 超速(全局) */
+  /* 超速(全局): 超得越多涨得越快(平方曲线) */
   const speedOver = game.speed - CRIME_SPEED_LIMIT;
-  if (speedOver > 0) gain += (speedOver / 200) * 12 * dt;
+  if (speedOver > 0) gain += (speedOver / 200) * (speedOver / 200) * 45 * dt;
   /* 施工占用车道内(玩家可以进入, 但要付出代价) */
   if (zone) {
     const zy0 = zoneScreenY(zone.worldStart);

@@ -23,8 +23,8 @@ function spawnEnemy() {
     x,
     y: type === 'ahead' ? -90 : H + 90, // 屏幕外入场
     speed, // 世界前进速度 px/s
-    width: 51,
-    height: 51, // 敌方贴图绘制尺寸(64 的 0.8 倍)
+    width: 66,
+    height: 66, // 敌方贴图绘制尺寸(51 的 1.3 倍)
     hp: 30,
     maxHp: 30,
     hitCd: 0,
