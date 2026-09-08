@@ -2,7 +2,7 @@
 
 /* 施工路段(占用半边车道, 黄色斜纹提示) + 犯罪条 */
 
-/* global game, PX_PER_M, ZONE_DELAY_FIRST_M, ZONE_INTERVAL_MIN_M, ZONE_INTERVAL_MAX_M, ZONE_LEN_MIN, ZONE_LEN_MAX, ZONE_ANCHOR_Y, H, ROAD, player, ctx, fillRR, rr, IMG, assets, clamp, CRIME_SPEED_LIMIT, CRIME_MAX_LVL, addFloatText */
+/* global game, PX_PER_M, ZONE_DELAY_FIRST_M, ZONE_INTERVAL_MIN_M, ZONE_INTERVAL_MAX_M, ZONE_LEN_MIN, ZONE_LEN_MAX, ZONE_ANCHOR_Y, H, ROAD, player, ctx, fillRR, rr, IMG, assets, clamp, CRIME_SPEED_LIMIT, CRIME_MAX_LVL, addFloatText, difficulty */
 
 let zone = null; // 当前施工路段 { side, worldStart, worldEnd }
 let nextZoneDist = ZONE_DELAY_FIRST_M * PX_PER_M; // 下一个施工路段出现的距离阈值(px)
@@ -54,9 +54,11 @@ function updateZone(dt) {
   if (zoneScreenY(zone.worldEnd) > H + 30) {
     zone = null;
     zoneSigns.length = 0;
+    /* 难度越高施工路段越频繁(间隔最多缩短 80%) */
     nextZoneDist =
       game.totalDist +
       (ZONE_INTERVAL_MIN_M + Math.random() * (ZONE_INTERVAL_MAX_M - ZONE_INTERVAL_MIN_M)) *
+        (1 - difficulty() * 0.8) *
         PX_PER_M;
     return;
   }

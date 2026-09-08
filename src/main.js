@@ -22,7 +22,7 @@
 
 /* 主循环: update/render + 道路贴图滚动 */
 
-/* global game, player, input, BASE_SPEED, SPEED_MIN, SPEED_MAX, clamp, BOUNDS, updateSmoke, updateEnemies, collide, updateWeapon, updateBoom, updatePickups, updateCustomer, updateShop, updateRestaurant, updateZone, updateCrime, updatePolice, updateSpike, spawnSmokeAt, updateFloatTexts, ctx, dpr, W, H, LOOP, JOY_RADIUS, drawZone, drawSpike, drawSmoke, drawCustomer, drawShop, drawRestaurant, drawEnemies, drawPolice, drawPickups, drawBullets, drawPlayer, drawWeapon, drawBoom, drawJoy, drawHUD, drawFloatTexts, drawGameOver, drawMenu, ready, assets, IMG, TILE_H */
+/* global game, player, input, BASE_SPEED, SPEED_MIN, SPEED_MAX, clamp, BOUNDS, updateSmoke, updateEnemies, updateEnemyBullets, collide, updateWeapon, updateBoom, updatePickups, updateCustomer, updateShop, updateRestaurant, updateZone, updateCrime, updatePolice, updateSpike, spawnSmokeAt, updateFloatTexts, ctx, dpr, W, H, LOOP, JOY_RADIUS, drawZone, drawSpike, drawSmoke, drawCustomer, drawShop, drawRestaurant, drawEnemies, drawEnemyBullets, drawPolice, drawPickups, drawBullets, drawPlayer, drawWeapon, drawBoom, drawJoy, drawHUD, drawFloatTexts, drawGameOver, drawMenu, ready, assets, IMG, TILE_H */
 
 /* ==================== 更新 ==================== */
 function update(dt) {
@@ -100,6 +100,7 @@ function update(dt) {
 
   /* 敌方骑手 / 碰撞 / 特效 */
   updateEnemies(dt);
+  updateEnemyBullets(dt);
   collide();
   updateWeapon(dt);
   updateBoom(dt);
@@ -145,6 +146,7 @@ function render() {
   drawShop(); // 水泥区店铺
   drawRestaurant(); // 水泥区饭店
   drawEnemies(); // 敌方骑手
+  drawEnemyBullets(); // 敌方子弹
   drawPolice(); // 警车
   drawPickups(); // 外卖掉落
   drawBullets(); // 子弹

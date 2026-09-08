@@ -2,9 +2,10 @@
 
 /* 敌方骑手: 生成(前方被超越/后方超车两种)、更新、受击结算与绘制 */
 
-/* global game, ENEMY_MAX, assets, H, ENEMY_DIE_TIME, clamp, ROAD, zone, zoneScreenY, ENEMY_HIT_CD, spawnBoom, dropFood, IMG, ctx, drawBar, player, addFloatText */
+/* global game, ENEMY_MAX, assets, H, ENEMY_DIE_TIME, clamp, ROAD, zone, zoneScreenY, ENEMY_HIT_CD, spawnBoom, dropFood, IMG, ctx, drawBar, player, addFloatText, difficulty, WEAPONS, damagePlayer, W, PX_PER_M */
 
 const enemies = [];
+const enemyBullets = []; // 敌方子弹 { x, y, vx, vy, dmg, life }
 let enemyTimer = 1.2;
 
 /* 生成敌方骑手: 'ahead' 从前方出现被玩家超越, 'behind' 从后方超车 */
@@ -19,6 +20,13 @@ function spawnEnemy() {
   for (let i = 0; i < 5 && Math.abs(x - player.x) < 90; i++) {
     x = ROAD.left + 34 + Math.random() * (ROAD.width - 68);
   }
+  /* 随机装备武器: 前 200 米不出现; 之后难度越高概率越高(10%→60%), 敌人只能携带 1 个装备 */
+  const d = difficulty();
+  let weapons = [];
+  if (game.totalDist >= 200 * PX_PER_M && Math.random() < 0.1 + d * 0.5) {
+    const types = ['dagger', 'pistol', 'rifle', 'shield'];
+    weapons.push(types[Math.floor(Math.random() * types.length)]);
+  }
   enemies.push({
     x,
     y: type === 'ahead' ? -90 : H + 90, // 屏幕外入场
@@ -27,6 +35,9 @@ function spawnEnemy() {
     height: 66, // 敌方贴图绘制尺寸(51 的 1.3 倍)
     hp: 30,
     maxHp: 30,
+    weapons, // 随机装备的武器(空数组 = 无装备)
+    shieldLeft: weapons.filter((w) => w === 'shield').length, // 敌方盾牌格挡次数
+    gunCd: Math.random() * 1, // 持枪敌人的开火冷却
     hitCd: 0,
     flash: 0,
     kbx: 0, // 撞击弹开冲量(横向)
@@ -41,11 +52,12 @@ function spawnEnemy() {
 }
 
 function updateEnemies(dt) {
-  /* 定时生成 */
+  /* 定时生成; 同屏敌人数上限随难度提升: 3 → 10, 生成间隔随难度缩短(满难度约 0.7~1.6s) */
   enemyTimer -= dt;
-  if (!game.over && enemyTimer <= 0 && enemies.length < ENEMY_MAX && assets.enemy) {
+  const cap = ENEMY_MAX + Math.floor(difficulty() * 7);
+  if (!game.over && enemyTimer <= 0 && enemies.length < cap && assets.enemy) {
     spawnEnemy();
-    enemyTimer = 1.8 + Math.random() * 2.2;
+    enemyTimer = (1.8 + Math.random() * 2.2) * (1 - difficulty() * 0.6);
   }
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
@@ -54,8 +66,8 @@ function updateEnemies(dt) {
     if (!e.dying) {
       /* 轻微左右游走, 保持路内 */
       e.x += (Math.sin(game.time * 1.4 + e.wobblePhase) * 42 + e.kbx) * dt;
-      /* 施工路段: 敌方骑手避开占用车道, 玩家不受限 */
-      if (zone) {
+      /* 施工路段: 敌方骑手避开占用车道(装备了武器的敌人无视施工路段) */
+      if (zone && e.weapons.length === 0) {
         const zy0 = zoneScreenY(zone.worldStart);
         const zy1 = zoneScreenY(zone.worldEnd);
         const mid = ROAD.left + ROAD.width / 2;
@@ -68,6 +80,30 @@ function updateEnemies(dt) {
         }
       }
       e.x = clamp(e.x, ROAD.left + 34, ROAD.left + ROAD.width - 34);
+
+      /* 持枪敌人自动向玩家开火 */
+      e.gunCd -= dt;
+      const hasGun = e.weapons.includes('pistol') || e.weapons.includes('rifle');
+      if (hasGun && e.gunCd <= 0) {
+        const ex = player.x - e.x;
+        const ey = player.y - e.y;
+        const ed = Math.hypot(ex, ey);
+        if (ed < 380 && ed > 40) {
+          const rifle = e.weapons.includes('rifle');
+          /* 瞄准误差(散布 ±0.22rad)降低命中率, 弹速 300 让玩家有反应时间 */
+          const aimErr = (Math.random() - 0.5) * 0.44;
+          const ang = Math.atan2(ex, ey) + aimErr;
+          enemyBullets.push({
+            x: e.x + (ex / ed) * 20,
+            y: e.y + (ey / ed) * 20,
+            vx: Math.sin(ang) * 300,
+            vy: Math.cos(ang) * 300,
+            dmg: rifle ? 10 : 8,
+            life: 2.4,
+          });
+          e.gunCd = rifle ? 0.9 : 1.2;
+        }
+      }
     }
     /* 死亡动画期间(被撞飞)弹开冲量衰减更慢, 让敌方飞得更远 */
     const kbDecay = e.dying ? 2 : 4;
@@ -88,13 +124,22 @@ function updateEnemies(dt) {
 
 function damageEnemy(e, d) {
   if (e.hitCd > 0) return;
+  /* 敌方盾牌: 格挡若干次伤害 */
+  if (e.shieldLeft > 0) {
+    e.shieldLeft--;
+    e.hitCd = ENEMY_HIT_CD;
+    e.flash = 0.3;
+    addFloatText(e.x, e.y - e.height / 2, '格挡!', '#4da3ff');
+    return;
+  }
   e.hp = Math.max(0, e.hp - d);
   e.hitCd = ENEMY_HIT_CD;
   e.flash = 0.3;
   if (e.hp <= 0) {
     e.dead = true;
-    e.dying = true; // 死亡动画(放大淡出)
+    e.dying = true; // 统一撞击死亡动画
     e.dieT = 0;
+    launchEnemy(e, player.x); // 向前上方翻滚飞出
     spawnBoom(e.x, e.y);
     dropFood(e.x, e.y); // 掉落若干外卖
   }
@@ -106,7 +151,6 @@ function launchEnemy(e, fromX) {
   e.spin = (Math.random() < 0.5 ? -1 : 1) * (5 + Math.random() * 5);
   e.kbx = (e.x >= fromX ? 1 : -1) * (260 + Math.random() * 160);
   e.kby = -(420 + Math.random() * 220); // 向前上方飞出
-  addFloatText(e.x, e.y - e.height / 2, '撞飞!', '#ff9d5c');
 }
 
 /* ---- 敌方骑手绘制 ---- */
@@ -116,7 +160,7 @@ function drawEnemies() {
     const wobble = Math.sin(game.time * 1.4 + e.wobblePhase);
     ctx.save();
     if (e.dying) {
-      /* 死亡: 放大 + 淡出模拟被撞飞(被警车撞飞时附加翻滚与弹开位移) */
+      /* 统一撞击死亡: 翻滚旋转 + 放大 + 淡出, 位移由弹开冲量驱动 */
       const t = Math.min(1, e.dieT / ENEMY_DIE_TIME);
       const k = t * t; // 加速曲线, 开头变化更明显
       ctx.translate(e.x, e.y);
@@ -145,5 +189,59 @@ function drawEnemies() {
     ctx.restore();
     /* 头顶血条(倒下时不显示) */
     if (!e.dying) drawBar(e.x, e.y - e.height / 2 - 10, e.hp / e.maxHp, 34, 4);
+    /* 敌方装备: 像玩家一样绕身旋转(枪械自动瞄准玩家) */
+    if (!e.dying && e.weapons.length > 0 && assets.item) {
+      const fw = IMG.item.naturalWidth / 3;
+      const fh = IMG.item.naturalHeight / 3;
+      const aim = Math.atan2(player.x - e.x, -(player.y - e.y)); // 指向玩家
+      for (const w of e.weapons) {
+        const def = WEAPONS[w];
+        const f = def.frame;
+        ctx.save();
+        ctx.translate(e.x + Math.sin(aim) * 30, e.y - Math.cos(aim) * 30);
+        ctx.rotate(aim + def.baseRot);
+        ctx.drawImage(
+          IMG.item,
+          f[0] * fw + 2,
+          f[1] * fh + 2,
+          fw - 4,
+          fh - 4,
+          -18,
+          -18,
+          36,
+          36,
+        );
+        ctx.restore();
+      }
+    }
+  }
+}
+
+/* ---- 敌方子弹: 飞行与命中玩家 ---- */
+function updateEnemyBullets(dt) {
+  for (let i = enemyBullets.length - 1; i >= 0; i--) {
+    const b = enemyBullets[i];
+    b.life -= dt;
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    const dx = b.x - player.x;
+    const dy = b.y - player.y;
+    const r = player.width * 0.5;
+    if (dx * dx + dy * dy < r * r) {
+      damagePlayer(b.dmg);
+      enemyBullets.splice(i, 1);
+      continue;
+    }
+    if (b.life <= 0 || b.x < -20 || b.x > W + 20 || b.y < -40 || b.y > H + 40) {
+      enemyBullets.splice(i, 1);
+    }
+  }
+}
+function drawEnemyBullets() {
+  for (const b of enemyBullets) {
+    ctx.fillStyle = '#ff6b5e';
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
   }
 }

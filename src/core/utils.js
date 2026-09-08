@@ -2,11 +2,15 @@
 
 /* 通用工具与绘制辅助(本文件禁止顶层执行语句: 绘制函数依赖 canvas.js 声明的 ctx) */
 
-/* global ctx */
+/* global ctx, game, PX_PER_M */
 
 /* 数值钳制 */
 function clamp(v, a, b) {
   return v < a ? a : v > b ? b : v;
+}
+/* 难度系数 0~1: 按已行驶里程线性增长, 4km 时达到满难度 */
+function difficulty() {
+  return Math.min(1, game.totalDist / PX_PER_M / 4000);
 }
 /* 圆角矩形路径 */
 function rr(x, y, w, h, r) {

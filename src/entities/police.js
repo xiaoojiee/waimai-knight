@@ -18,6 +18,11 @@ function adjustCrime(dir) {
 /* 测试: 直接获得指定装备 */
 function grantWeapon(type) {
   const def = WEAPONS[type];
+  /* 枪械互斥: 手枪/步枪只能同时存在一种; 匕首/盾牌可与其共存 */
+  if (type === 'pistol' || type === 'rifle') {
+    delete player.weapons.pistol;
+    delete player.weapons.rifle;
+  }
   player.weapons[type] = { ammo: def.uses ?? def.ammo ?? def.charges, cd: 0 };
   addFloatText(player.x, player.y - player.height / 2, '获得 ' + def.label, '#ffd23f');
 }

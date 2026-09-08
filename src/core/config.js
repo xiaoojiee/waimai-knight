@@ -47,17 +47,17 @@ const WEAPONS = {
     extraDmg: 15,
   },
   pistol: {
-    frame: [1, 0],
+    frame: [0, 1], // 实际图集: [1,0] 是长剑, 手枪在 [1,1](枪口朝右上)
     price: 70,
     label: '手枪',
     color: '#2980b9',
-    baseRot: Math.PI / 2,
+    baseRot: Math.PI / 2, // 逆时针 45° 使枪口朝上
     ammo: 6,
     dmg: 12,
     rate: 0.45,
   },
   rifle: {
-    frame: [1, 1],
+    frame: [1, 1], // 大枪在 [1,2](枪口朝右上), 用作步枪
     price: 120,
     label: '步枪',
     color: '#27ae60',
@@ -71,9 +71,9 @@ const WEAPONS = {
 /* 店铺图集 3×3 帧位(行主序): 外卖店 / 刀店 / 手枪店 / 步枪店 / 护盾店 */
 const SHOP_FRAMES = {
   restaurant: [0, 0],
-  dagger: [0, 1],
-  pistol: [0, 2],
-  rifle: [1, 0],
+  dagger: [1, 0],
+  pistol: [2, 0],
+  rifle: [0, 1],
   shield: [1, 1],
 };
 const SHOP_DELAY_FIRST_M = 80; // 开局行驶多远后出现第一个店铺(米)

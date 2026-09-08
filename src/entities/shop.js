@@ -2,7 +2,7 @@
 
 /* 水泥区店铺(卖装备)与饭店(卖外卖) */
 
-/* global game, assets, PX_PER_M, SHOP_DELAY_FIRST_M, SHOP_INTERVAL_MIN_M, SHOP_INTERVAL_MAX_M, WEAPONS, SHOP_FRAMES, player, BOUNDS, input, JOY_RADIUS, addFloatText, REST_DELAY_FIRST_M, REST_INTERVAL_MIN_M, REST_INTERVAL_MAX_M, FOOD_BUY_PRICE, FOOD_BUNDLE, ctx, fillRR, H, IMG, CEMENT_X, W, ROAD, rr */
+/* global game, assets, PX_PER_M, SHOP_DELAY_FIRST_M, SHOP_INTERVAL_MIN_M, SHOP_INTERVAL_MAX_M, WEAPONS, SHOP_FRAMES, player, BOUNDS, input, JOY_RADIUS, addFloatText, REST_DELAY_FIRST_M, REST_INTERVAL_MIN_M, REST_INTERVAL_MAX_M, FOOD_BUY_PRICE, FOOD_BUNDLE, ctx, fillRR, H, IMG, CEMENT_X, W, ROAD, rr, difficulty */
 
 let shop = null; // 当前店铺 { type, x, y, buyCd }
 let nextShopDist = SHOP_DELAY_FIRST_M * PX_PER_M; // 下一个店铺出现的距离阈值(px)
@@ -17,7 +17,11 @@ function spawnShop() {
   };
 }
 function scheduleShop() {
-  const m = SHOP_INTERVAL_MIN_M + Math.random() * (SHOP_INTERVAL_MAX_M - SHOP_INTERVAL_MIN_M);
+  /* 难度越高店铺出现越频繁(间隔最多缩短 65%) */
+  const d = difficulty();
+  const m =
+    (SHOP_INTERVAL_MIN_M + Math.random() * (SHOP_INTERVAL_MAX_M - SHOP_INTERVAL_MIN_M)) *
+    (1 - d * 0.65);
   nextShopDist = game.totalDist + m * PX_PER_M;
 }
 function updateShop(dt) {
@@ -55,7 +59,11 @@ function buyWeapon() {
     return;
   }
   player.money -= def.price;
-  /* 同种类替换, 不同种类可同时持有 */
+  /* 枪械互斥: 手枪/步枪只能同时存在一种; 匕首/盾牌可与其共存 */
+  if (shop.type === 'pistol' || shop.type === 'rifle') {
+    delete player.weapons.pistol;
+    delete player.weapons.rifle;
+  }
   player.weapons[shop.type] = {
     ammo: def.uses ?? def.ammo ?? def.charges,
     cd: 0,
@@ -125,7 +133,11 @@ function spawnRestaurant() {
   };
 }
 function scheduleRestaurant() {
-  const m = REST_INTERVAL_MIN_M + Math.random() * (REST_INTERVAL_MAX_M - REST_INTERVAL_MIN_M);
+  /* 难度越高饭店出现越频繁(间隔最多缩短 60%) */
+  const d = difficulty();
+  const m =
+    (REST_INTERVAL_MIN_M + Math.random() * (REST_INTERVAL_MAX_M - REST_INTERVAL_MIN_M)) *
+    (1 - d * 0.6);
   nextRestDist = game.totalDist + m * PX_PER_M;
 }
 function updateRestaurant(dt) {

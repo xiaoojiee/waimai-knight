@@ -2,7 +2,7 @@
 
 /* 玩家与敌骑手碰撞检测 */
 
-/* global player, enemies, game, DMG_SIDE, DMG_FRONT, DMG_REAR, WEAPONS, slashFX, damagePlayer, damageEnemy, spawnBoom, launchEnemy */
+/* global player, enemies, game, DMG_SIDE, DMG_FRONT, DMG_REAR, WEAPONS, slashFX, damagePlayer, damageEnemy, spawnBoom */
 
 function collide() {
   const pw = player.width * 0.6;
@@ -65,9 +65,10 @@ function collide() {
       player.weapons.dagger.ammo--;
       if (player.weapons.dagger.ammo <= 0) delete player.weapons.dagger; // 20 次用完消失
     }
-    damagePlayer(dmgP);
+    /* 敌方匕首: 撞击时对玩家附加伤害 */
+    const extraE = e.weapons.includes('dagger') ? 10 : 0;
+    damagePlayer(dmgP + extraE);
     damageEnemy(e, dmgE + extra);
-    if (e.dying) launchEnemy(e, player.x); // 被玩家撞死: 与警车撞飞一致, 翻滚飞出
     spawnBoom((player.x + e.x) / 2, (player.y + e.y) / 2);
     game.shake = 0.35;
     e.pass = true; // 本次接触只结算一次, 之后穿行滑过

@@ -226,6 +226,6 @@ function drawGameOver() {
   ctx.globalAlpha = 0.55 + 0.45 * Math.sin(game.time * 4);
   ctx.fillStyle = '#ffd23f';
   ctx.font = "13px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('— 点击屏幕重新开始 —', W / 2, H / 2 + 44);
+  ctx.fillText('— 点击返回开始界面 —', W / 2, H / 2 + 44);
   ctx.globalAlpha = 1;
 }

@@ -2,7 +2,7 @@
 
 /* 输入: 键盘(WASD/方向键)+ 手机虚拟摇杆 + 外卖按钮点击 */
 
-/* global canvas, input, W, H, game, foodBtn, startBtn, useFood, resetGame, adjustCrime, grantWeapon, player, addFloatText, CEMENT_X */
+/* global canvas, input, W, H, game, foodBtn, startBtn, useFood, resetGame, adjustCrime, grantWeapon, player, addFloatText, CEMENT_X, PX_PER_M */
 
 const KEYMAP = {
   ArrowLeft: 'left',
@@ -42,6 +42,13 @@ window.addEventListener('keydown', (e) => {
       e.preventDefault();
       player.food = Math.min(99, player.food + 5);
       addFloatText(player.x, player.y - player.height / 2, '+5 外卖', '#ffd23f');
+      return;
+    }
+    /* T: 测试用, 增加 500m 路程快速进入高难度 */
+    if (e.code === 'KeyT') {
+      e.preventDefault();
+      game.totalDist += 500 * PX_PER_M;
+      addFloatText(player.x, player.y - player.height / 2, '路程 +500m', '#c7cdd4');
       return;
     }
     return;
@@ -86,6 +93,7 @@ canvas.addEventListener('pointerdown', (e) => {
   }
   if (game.over) {
     resetGame();
+    game.started = false; // 死亡后退回开始界面
     return;
   }
   const p = toLogical(e);

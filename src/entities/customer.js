@@ -2,7 +2,7 @@
 
 /* 客户(送餐任务): 路边生成/距离提示/送达结算 */
 
-/* global game, assets, IMG, PX_PER_M, CUSTOMER_DELAY_FIRST_M, CUSTOMER_SPAWN_CHANCE, CUSTOMER_INTERVAL_MIN_M, CUSTOMER_INTERVAL_MAX_M, player, FOOD_PRICE, FOOD_FINE, gameOver, addFloatText, ctx, fillRR, H, ROAD */
+/* global game, assets, IMG, PX_PER_M, CUSTOMER_DELAY_FIRST_M, CUSTOMER_SPAWN_CHANCE, CUSTOMER_INTERVAL_MIN_M, CUSTOMER_INTERVAL_MAX_M, player, FOOD_PRICE, FOOD_FINE, gameOver, addFloatText, ctx, fillRR, H, ROAD, difficulty */
 
 let customer = null; // 当前路边客户 { x, y, side, demand, frame, resolved }
 let nextCustomerDist = CUSTOMER_DELAY_FIRST_M * PX_PER_M; // 下一个客户出现的距离阈值(px)
@@ -31,7 +31,9 @@ function rollDemand() {
   const lvl = Math.min(4, Math.floor(km / 0.5)); // 每 500 米一档
   const max = 4 + lvl; // 需求上限 4 → 8
   const min = Math.min(1 + Math.floor(lvl / 2), max - 1); // 需求下限 1 → 3
-  return min + Math.floor(Math.random() * (max - min + 1));
+  /* 难度越高需求越大: 满难度时额外 +0~3 个 */
+  const extra = Math.floor(difficulty() * 4 * Math.random());
+  return min + Math.floor(Math.random() * (max - min + 1)) + extra;
 }
 
 function spawnCustomer() {
@@ -50,8 +52,8 @@ function spawnCustomer() {
 function updateCustomer(dt) {
   if (!customer) {
     if (!game.over && assets.customer && game.totalDist >= nextCustomerDist) {
-      /* 到达距离阈值: 概率生成, 未生成则重新调度 */
-      if (Math.random() < CUSTOMER_SPAWN_CHANCE) {
+      /* 到达距离阈值: 概率生成(难度越高概率越高 60%→90%), 未生成则重新调度 */
+      if (Math.random() < CUSTOMER_SPAWN_CHANCE + difficulty() * 0.3) {
         spawnCustomer();
       } else {
         scheduleCustomer();
@@ -87,8 +89,10 @@ function updateCustomer(dt) {
 
 /* 调度下一个客户的出现距离 */
 function scheduleCustomer() {
+  /* 难度越高客户越频繁(间隔最多缩短 50%) */
   const m =
-    CUSTOMER_INTERVAL_MIN_M + Math.random() * (CUSTOMER_INTERVAL_MAX_M - CUSTOMER_INTERVAL_MIN_M);
+    (CUSTOMER_INTERVAL_MIN_M + Math.random() * (CUSTOMER_INTERVAL_MAX_M - CUSTOMER_INTERVAL_MIN_M)) *
+    (1 - difficulty() * 0.5);
   nextCustomerDist = game.totalDist + m * PX_PER_M;
 }
 
