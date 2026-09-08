@@ -29,7 +29,8 @@ function detectCustomerFrames() {
         let has = false;
         for (let y = gy * s; y < (gy + 1) * s && y < ih && !has; y += 2) {
           for (let x = gx * s; x < (gx + 1) * s && x < iw; x += 2) {
-            if (d[(y * iw + x) * 4 + 3] > 8) {
+            /* 阈值 40: 滤掉降采样后透明间隙里的重采样晕影(角色本体是不透明的) */
+            if (d[(y * iw + x) * 4 + 3] > 40) {
               has = true;
               break;
             }
@@ -84,13 +85,15 @@ function detectCustomerFrames() {
         h: Math.min(ih - by, (maxY - minY + 1) * s + 4),
       });
     }
-    /* 合并同行的碎块(同一角色被拆成多个连通域的情况) */
+    /* 合并同行的碎块(同一角色被拆成多个连通域的情况);
+     * 容差按图集宽度自适应: 防止降采样后的图集把相邻角色误合并 */
+    const mergeTol = Math.max(8, iw * 0.02);
     boxes.sort((a, b) => a.y - b.y || a.x - b.x);
     for (let i = 0; i < boxes.length - 1; i++) {
       const a = boxes[i],
         b = boxes[i + 1];
       if (!a || !b) continue;
-      if (b.x < a.x + a.w + 40 && b.y < a.y + a.h && b.y + b.h > a.y) {
+      if (b.x < a.x + a.w + mergeTol && b.y < a.y + a.h && b.y + b.h > a.y) {
         const x2 = Math.min(a.x, b.x);
         const y2 = Math.min(a.y, b.y);
         a.x = x2;
