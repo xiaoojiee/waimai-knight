@@ -1,2 +1,4 @@
 node_modules/
 .claude/
+assets/贴图原图/
+*.zip

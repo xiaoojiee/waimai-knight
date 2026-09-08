@@ -22,11 +22,16 @@
 
 /* 主循环: update/render + 道路贴图滚动 */
 
-/* global game, player, input, BASE_SPEED, SPEED_MIN, SPEED_MAX, clamp, BOUNDS, updateSmoke, updateEnemies, collide, updateWeapon, updateBoom, updatePickups, updateCustomer, updateShop, updateRestaurant, updateZone, updateCrime, updatePolice, updateSpike, spawnSmokeAt, updateFloatTexts, ctx, dpr, W, H, LOOP, JOY_RADIUS, drawZone, drawSpike, drawSmoke, drawCustomer, drawShop, drawRestaurant, drawEnemies, drawPolice, drawPickups, drawBullets, drawPlayer, drawWeapon, drawBoom, drawJoy, drawHUD, drawFloatTexts, drawGameOver, ready, assets, IMG, TILE_H */
+/* global game, player, input, BASE_SPEED, SPEED_MIN, SPEED_MAX, clamp, BOUNDS, updateSmoke, updateEnemies, collide, updateWeapon, updateBoom, updatePickups, updateCustomer, updateShop, updateRestaurant, updateZone, updateCrime, updatePolice, updateSpike, spawnSmokeAt, updateFloatTexts, ctx, dpr, W, H, LOOP, JOY_RADIUS, drawZone, drawSpike, drawSmoke, drawCustomer, drawShop, drawRestaurant, drawEnemies, drawPolice, drawPickups, drawBullets, drawPlayer, drawWeapon, drawBoom, drawJoy, drawHUD, drawFloatTexts, drawGameOver, drawMenu, ready, assets, IMG, TILE_H */
 
 /* ==================== 更新 ==================== */
 function update(dt) {
   game.time += dt;
+
+  if (!game.started) {
+    /* 开始界面: 游戏完全暂停 */
+    return;
+  }
 
   if (game.over) {
     /* 游戏结束: 场景冻结, 只更新特效 */
@@ -147,7 +152,7 @@ function render() {
   drawWeapon(); // 装备(枪械/护盾/挥砍)
   drawBoom(); // 碰撞特效
   drawJoy(); // 手机虚拟摇杆
-  drawHUD(); // HUD(血量/外卖/速度)
+  if (game.started) drawHUD(); // HUD(血量/外卖/速度, 开始界面不显示)
   if (player.flash > 0) {
     /* 受击红色蒙板 */
     ctx.fillStyle = 'rgba(255,40,40,' + Math.min(0.4, player.flash) + ')';
@@ -160,6 +165,7 @@ function render() {
   }
   drawFloatTexts(); // 漂浮文字
   drawGameOver(); // 结束界面
+  drawMenu(); // 开始界面(未开始时盖在最上层)
 
   if (!ready) {
     ctx.fillStyle = 'rgba(0,0,0,0.65)';

@@ -7,6 +7,34 @@
 /* 外卖按钮点击区域(右下角水泥路面, 方便手机拇指操作; drawHUD 绘制, input.js pointerdown 共用) */
 const foodBtn = { x: 322, y: H - 132, w: 146, h: 64 };
 
+/* 开始按钮点击区域(开始界面, input.js pointerdown 共用) */
+const startBtn = { x: W / 2 - 80, y: H * 0.52, w: 160, h: 56 };
+
+/* ---- 开始界面(黄色全屏覆盖 + 中间开始按钮) ---- */
+function drawMenu() {
+  if (game.started) return;
+  /* 黄色全屏开始页 */
+  ctx.fillStyle = '#ffd23f';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#2b2b2b';
+  ctx.font = "bold 40px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('你的胆子', W / 2, H * 0.34);
+  ctx.fillText('真的肥嘟嘟的', W / 2, H * 0.34 + 48);
+  ctx.fillStyle = '#5a4a00';
+  ctx.font = "15px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('2D 俯视角送餐闯关', W / 2, H * 0.34 + 82);
+  /* 开始按钮(深色底 + 黄色字, 居中) */
+  fillRR(startBtn.x, startBtn.y, startBtn.w, startBtn.h, 14, '#2b2b2b');
+  ctx.fillStyle = '#ffd23f';
+  ctx.font = "bold 26px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('开始', W / 2, startBtn.y + 38);
+  /* 操作提示 */
+  ctx.fillStyle = '#5a4a00';
+  ctx.font = "12px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('电脑: 方向键/WASD · 手机: 下半屏滑动', W / 2, H * 0.78);
+}
+
 /* ---- 虚拟摇杆(仅手机滑动时显示) ---- */
 function drawJoy() {
   const joy = input.joy;

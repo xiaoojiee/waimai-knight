@@ -2,7 +2,7 @@
 
 /* 输入: 键盘(WASD/方向键)+ 手机虚拟摇杆 + 外卖按钮点击 */
 
-/* global canvas, input, W, H, game, foodBtn, useFood, resetGame, adjustCrime, grantWeapon, player, addFloatText, CEMENT_X */
+/* global canvas, input, W, H, game, foodBtn, startBtn, useFood, resetGame, adjustCrime, grantWeapon, player, addFloatText, CEMENT_X */
 
 const KEYMAP = {
   ArrowLeft: 'left',
@@ -71,6 +71,19 @@ function toLogical(e) {
 const JOY_RADIUS = 70;
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
+  if (!game.started) {
+    /* 开始界面: 点击中间的"开始"按钮才开始游戏 */
+    const p = toLogical(e);
+    if (
+      p.x >= startBtn.x &&
+      p.x <= startBtn.x + startBtn.w &&
+      p.y >= startBtn.y &&
+      p.y <= startBtn.y + startBtn.h
+    ) {
+      game.started = true;
+    }
+    return;
+  }
   if (game.over) {
     resetGame();
     return;

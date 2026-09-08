@@ -8,6 +8,7 @@ const game = {
   distance: 0, // 本圈内滚动距离(px)
   totalDist: 0, // 累计行驶距离(px)
   time: 0,
+  started: false, // 是否已开始(开始界面点开始按钮后为 true)
   speed: BASE_SPEED,
   over: false, // 游戏结束标记
   overReason: '', // 结束原因: hp(受伤) / bankrupt(破产)
