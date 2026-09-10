@@ -2,7 +2,7 @@
 
 /* 界面绘制: HUD(血量/外卖/速度/犯罪条)/虚拟摇杆/游戏结束界面 */
 
-/* global ctx, fillRR, rr, W, H, player, game, PX_PER_M, BASE_SPEED, IMG, assets, HEAL_AMT, WEAPONS, customer, nextCustomerDist, input, JOY_RADIUS, clamp, VEHICLES, drawFoodItem, drawFoodGlow, oldestNonSpecialIndex, screenMsg */
+/* global ctx, fillRR, rr, W, H, player, game, PX_PER_M, BASE_SPEED, IMG, assets, HEAL_AMT, WEAPONS, customer, nextCustomerDist, input, JOY_RADIUS, clamp, VEHICLES, drawFoodItem, drawFoodGlow, oldestNonSpecialIndex, screenMsg, loadProgress */
 
 /* 外卖按钮点击区域(右下角水泥路面, 方便手机拇指操作; drawHUD 绘制, input.js pointerdown 共用) */
 const foodBtn = { x: 322, y: H - 132, w: 146, h: 64 };
@@ -125,6 +125,26 @@ function drawStatPanel(cx, cy, r, def) {
     ctx.fillText(statGrade(vals[i]), lx, ly + 9);
   }
   ctx.textBaseline = 'alphabetic';
+}
+
+/* ---- 加载页(贴图未加载完时显示, 并屏蔽输入) ---- */
+function drawLoading() {
+  ctx.fillStyle = '#171a1d';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffd23f';
+  ctx.font = "bold 30px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('肥嘟嘟外卖模拟器', W / 2, H * 0.42);
+  const p = loadProgress();
+  const bw = 260;
+  const bh = 14;
+  const bx = (W - bw) / 2;
+  const by = H * 0.52;
+  fillRR(bx, by, bw, bh, 7, 'rgba(255,255,255,0.12)');
+  fillRR(bx, by, Math.max(4, bw * p), bh, 7, '#ffd23f');
+  ctx.fillStyle = '#c7cdd4';
+  ctx.font = "13px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('加载中… ' + Math.round(p * 100) + '%', W / 2, by + 42);
 }
 
 /* ---- 开始界面(黄色全屏覆盖) ---- */

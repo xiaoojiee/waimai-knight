@@ -70,7 +70,8 @@ function collide() {
     let dmgMul = vehicleDef().damageMul;
     if (player.buff.dash > 0) dmgMul *= DASH_DEALT_MUL;
     if (dmgMul !== 1) dmgE = Math.round(dmgE * dmgMul);
-    const extraE = e.weapons.includes('dagger') ? 10 : 0;
+    /* 敌方匕首: 撞击时对玩家附加伤害(与玩家一致) */
+    const extraE = e.weapons.includes('dagger') ? WEAPONS.dagger.extraDmg : 0;
     damagePlayer(dmgP + extraE);
     damageEnemy(e, dmgE + extra, true); // true: 撞击伤害(触发「焖子」吃敌人效果)
     spawnBoom((player.x + e.x) / 2, (player.y + e.y) / 2);

@@ -2,7 +2,7 @@
 
 /* 敌方骑手: 生成(前方被超越/后方超车两种)、更新、受击结算与绘制 */
 
-/* global game, ENEMY_MAX, assets, H, ENEMY_DIE_TIME, clamp, ROAD, zone, zoneScreenY, ENEMY_HIT_CD, spawnBoom, dropFood, IMG, ctx, drawBar, player, addFloatText, difficulty, WEAPONS, damagePlayer, W, PX_PER_M, spawnSmokeAt, BASE_SPEED, spriteContent, contentSize, EAT_HEAL, ENEMY_SCALE */
+/* global game, ENEMY_MAX, assets, H, ENEMY_DIE_TIME, clamp, ROAD, zone, zoneScreenY, ENEMY_HIT_CD, spawnBoom, dropFood, IMG, ctx, drawBar, player, addFloatText, difficulty, WEAPONS, damagePlayer, W, PX_PER_M, spawnSmokeAt, BASE_SPEED, spriteContent, contentSize, EAT_HEAL, ENEMY_SCALE, ORBIT, squashScale */
 
 const enemies = [];
 const enemyBullets = []; // 敌方子弹 { x, y, vx, vy, dmg, life }
@@ -144,6 +144,22 @@ function updateEnemies(dt) {
           e.gunCd = rifle ? 0.9 : 1.2;
         }
       }
+
+      /* 敌方匕首: 环绕碰到玩家 → 造成伤害并消耗(与玩家一致) */
+      if (e.weapons.includes('dagger')) {
+        const phi = game.time * ORBIT.dagger.spin;
+        const dx = e.x + Math.sin(phi) * ORBIT.dagger.r;
+        const dy = e.y - Math.cos(phi) * ORBIT.dagger.r;
+        const pcs = contentSize(player.vehicle);
+        const r = ORBIT.dagger.hitR + pcs.w * 0.25;
+        const ddx = player.x - dx;
+        const ddy = player.y - dy;
+        if (ddx * ddx + ddy * ddy < r * r) {
+          damagePlayer(WEAPONS.dagger.extraDmg);
+          spawnBoom(dx, dy);
+          e.weapons.splice(e.weapons.indexOf('dagger'), 1);
+        }
+      }
     }
     /* 死亡动画期间(被撞飞)弹开冲量衰减更慢, 让敌方飞得更远 */
     const kbDecay = e.dying ? 2 : 4;
@@ -246,7 +262,7 @@ function drawEnemies() {
     ctx.restore();
     /* 头顶血条(按可见内容顶部, 倒下时不显示) */
     if (!e.dying) drawBar(e.x, e.y + (e.footY - e.ch) - 8, e.hp / e.maxHp, 34, 4);
-    /* 敌方装备: 像玩家一样绕身旋转(枪械自动瞄准玩家) */
+    /* 敌方装备: 匕首/盾牌与玩家一致的径向环绕(压缩); 枪械自动瞄准玩家 */
     if (!e.dying && e.weapons.length > 0 && assets.item) {
       const fw = IMG.item.naturalWidth / 2;
       const fh = IMG.item.naturalHeight / 2;
@@ -255,19 +271,20 @@ function drawEnemies() {
         const def = WEAPONS[w];
         const f = def.frame;
         ctx.save();
-        ctx.translate(e.x + Math.sin(aim) * 30, e.y - Math.cos(aim) * 30);
-        ctx.rotate(aim + def.baseRot);
-        ctx.drawImage(
-          IMG.item,
-          f[0] * fw + 2,
-          f[1] * fh + 2,
-          fw - 4,
-          fh - 4,
-          -18,
-          -18,
-          36,
-          36,
-        );
+        if (w === 'dagger' || w === 'shield') {
+          const o = w === 'dagger' ? ORBIT.dagger : ORBIT.shield;
+          const phi = game.time * o.spin;
+          ctx.translate(e.x + Math.sin(phi) * o.r, e.y - Math.cos(phi) * o.r);
+          if (w === 'dagger') ctx.rotate(phi);
+          else {
+            ctx.scale(squashScale(Math.cos(phi)), 1);
+            ctx.rotate(def.baseRot);
+          }
+        } else {
+          ctx.translate(e.x + Math.sin(aim) * 30, e.y - Math.cos(aim) * 30);
+          ctx.rotate(aim + def.baseRot);
+        }
+        ctx.drawImage(IMG.item, f[0] * fw + 2, f[1] * fh + 2, fw - 4, fh - 4, -18, -18, 36, 36);
         ctx.restore();
       }
     }

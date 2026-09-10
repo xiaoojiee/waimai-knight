@@ -2,7 +2,7 @@
 
 /* 输入: 键盘(WASD/方向键)+ 手机虚拟摇杆 + 外卖按钮点击 */
 
-/* global canvas, input, W, H, game, foodBtn, startBtn, vehicleBtns, vehicleOpenBtn, vehicleBackBtn, useFood, resetGame, adjustCrime, grantWeapon, player, addFloatText, PX_PER_M, makeFood, makeSpecialFood, applySpecialEffect, VEHICLES, applyVehicle, throwBtn, throwFood */
+/* global canvas, input, W, H, game, foodBtn, startBtn, vehicleBtns, vehicleOpenBtn, vehicleBackBtn, useFood, resetGame, adjustCrime, grantWeapon, player, addFloatText, PX_PER_M, makeFood, makeSpecialFood, applySpecialEffect, VEHICLES, applyVehicle, throwBtn, throwFood, ready */
 
 const KEYMAP = {
   ArrowLeft: 'left',
@@ -16,6 +16,7 @@ const KEYMAP = {
 };
 
 window.addEventListener('keydown', (e) => {
+  if (!ready) return; // 加载中屏蔽输入
   const k = KEYMAP[e.code];
   if (!k) {
     /* ---- 测试快捷键 ---- */
@@ -114,6 +115,7 @@ function toLogical(e) {
 const JOY_RADIUS = 70;
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
+  if (!ready) return; // 加载中屏蔽输入
   if (!game.started) {
     const p = toLogical(e);
     const hit = (b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;

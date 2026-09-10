@@ -50,12 +50,25 @@ const assets = {
 const SPRITE_BOX = {};
 let ready = false;
 
-/* 可选贴图在 onload 回调里才调用 detectSpriteBox/detectCustomerFrames(定义于所属实体文件) */
+/* 全部贴图加载完成后才 ready(加载页据此显示进度并屏蔽输入) */
 let checked = false;
 function checkReady() {
-  if (checked || !assets.road || !assets.rider) return;
+  if (checked) return;
+  for (const k in assets) {
+    if (!assets[k]) return;
+  }
   checked = true;
   ready = true;
+}
+/* 加载进度 0~1 */
+function loadProgress() {
+  let done = 0;
+  let total = 0;
+  for (const k in assets) {
+    total++;
+    if (assets[k]) done++;
+  }
+  return total ? done / total : 1;
 }
 
 IMG.road.onload = () => {

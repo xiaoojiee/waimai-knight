@@ -22,7 +22,7 @@
 
 /* 主循环: update/render + 道路贴图滚动 */
 
-/* global game, player, input, BASE_SPEED, SPEED_MIN, clamp, BOUNDS, vehicleDef, updateSmoke, updateSmokeParticles, updateEnemies, updateEnemyBullets, collide, updateWeapon, updateBoom, updatePickups, updateThrownFood, updateCustomer, updateShop, updateRestaurant, updateZone, updateCrime, updatePolice, updateSpike, spawnSmokeAt, spawnWalkDust, updateDust, updateFloatTexts, updateFoodLag, ctx, dpr, W, H, LOOP, JOY_RADIUS, drawZone, drawSpike, drawSmoke, drawDust, drawCustomer, drawShop, drawRestaurant, drawEnemies, drawEnemyBullets, drawPolice, drawPickups, drawThrownFood, drawBullets, drawOrbitWeapons, drawPlayer, drawWeapon, drawBoom, drawJoy, drawHUD, drawFloatTexts, drawGameOver, drawMenu, drawScreenMsg, ready, assets, IMG, TILE_H, screenMsg, nearestThrowTarget, throwMelon, BRAVE_SPEED_MUL, MELON_CD, DASH_SPEED_MUL, TRAIN_DRAIN_BASE, TRAIN_DRAIN_SPEED_REF, TRAIN_DRAIN_TIME_RATE, gameOver */
+/* global game, player, input, BASE_SPEED, SPEED_MIN, clamp, BOUNDS, vehicleDef, updateSmoke, updateSmokeParticles, updateEnemies, updateEnemyBullets, collide, updateWeapon, updateBoom, updatePickups, updateThrownFood, updateCustomer, updateShop, updateRestaurant, updateZone, updateCrime, updatePolice, updateSpike, spawnSmokeAt, spawnWalkDust, updateDust, updateFloatTexts, updateFoodLag, ctx, dpr, W, H, LOOP, JOY_RADIUS, drawZone, drawSpike, drawSmoke, drawDust, drawCustomer, drawShop, drawRestaurant, drawEnemies, drawEnemyBullets, drawPolice, drawPickups, drawThrownFood, drawBullets, drawOrbitWeapons, drawPlayer, drawWeapon, drawBoom, drawJoy, drawHUD, drawFloatTexts, drawGameOver, drawMenu, drawScreenMsg, drawLoading, ready, assets, IMG, TILE_H, screenMsg, checkReady, nearestThrowTarget, throwMelon, BRAVE_SPEED_MUL, MELON_CD, DASH_SPEED_MUL, TRAIN_DRAIN_BASE, TRAIN_DRAIN_SPEED_REF, TRAIN_DRAIN_TIME_RATE, gameOver */
 
 /* ==================== 更新 ==================== */
 function update(dt) {
@@ -208,6 +208,11 @@ function update(dt) {
 /* ==================== 绘制 ==================== */
 function render() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  /* 加载页: 贴图未就绪时只画加载页 */
+  if (!ready) {
+    drawLoading();
+    return;
+  }
   /* 受击屏幕震动 */
   if (game.shake > 0) {
     ctx.translate((Math.random() - 0.5) * 12 * game.shake, (Math.random() - 0.5) * 12 * game.shake);
@@ -249,15 +254,6 @@ function render() {
   drawScreenMsg(); // 屏幕中央大字(特殊客户台词)
   drawGameOver(); // 结束界面
   drawMenu(); // 开始界面(未开始时盖在最上层)
-
-  if (!ready) {
-    ctx.fillStyle = 'rgba(0,0,0,0.65)';
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#c7cdd4';
-    ctx.font = "16px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.textAlign = 'center';
-    ctx.fillText('资源加载中…', W / 2, H / 2);
-  }
 }
 
 /* ---- 道路贴图: 纵向无缝循环滚动 ---- */
@@ -279,6 +275,7 @@ let last = 0;
 function frame(t) {
   const dt = Math.min((t - last) / 1000, 1 / 30); // 限制最大帧间隔, 防止切后台后跳变
   last = t;
+  checkReady(); // 每帧检查贴图是否全部加载完成
   update(dt);
   render();
   requestAnimationFrame(frame);
