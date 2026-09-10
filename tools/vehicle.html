@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>载具缩放对照</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #12151a;
+        color: #d7dde5;
+        font: 13px/1.5 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        display: flex;
+        height: 100vh;
+      }
+      canvas {
+        background: #1b2026;
+        flex: 1;
+        min-width: 0;
+      }
+      aside {
+        width: 340px;
+        padding: 16px;
+        background: #161a20;
+        border-left: 1px solid #2a3038;
+        overflow: auto;
+      }
+      h1 {
+        font-size: 15px;
+        margin-bottom: 6px;
+        color: #ffd23f;
+      }
+      h2 {
+        font-size: 13px;
+        margin: 14px 0 6px;
+        color: #9cdcfe;
+      }
+      label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 7px 0;
+      }
+      label span {
+        width: 96px;
+        color: #8b949e;
+        flex-shrink: 0;
+      }
+      input[type='number'],
+      input[type='text'] {
+        width: 84px;
+        background: #0e1115;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 4px;
+        padding: 4px 6px;
+      }
+      input[type='range'] {
+        flex: 1;
+      }
+      input[type='file'] {
+        color: #8b949e;
+        font-size: 12px;
+      }
+      pre {
+        background: #0e1115;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 10px;
+        white-space: pre-wrap;
+        color: #9cdcfe;
+        margin-top: 8px;
+      }
+      .hint {
+        color: #8b949e;
+        font-size: 12px;
+        margin-bottom: 10px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      button {
+        background: #21262d;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 4px;
+        padding: 5px 10px;
+        cursor: pointer;
+      }
+      .legend {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        font-size: 12px;
+        color: #8b949e;
+        margin-top: 6px;
+      }
+      .sw {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        margin-right: 4px;
+        vertical-align: middle;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <aside>
+      <h1>载具缩放对照</h1>
+      <p class="hint">
+        加载新载具贴图, 调 scale / baseH / maxDim, 与步行(参考)比对大小。尺寸公式与游戏一致。
+      </p>
+      <label>
+        <span>新载具贴图</span>
+        <input id="file" type="file" accept="image/*" />
+      </label>
+      <label><span>帧数 frames</span><input id="frames" type="number" step="1" min="1" value="1" /></label>
+      <label><span>基准高 baseH</span><input id="baseH" type="number" step="1" value="90" /></label>
+      <label><span>缩放 scale</span><input id="scale" type="number" step="0.05" value="1" /></label>
+      <label><span>宽上限 maxDim</span><input id="maxDim" type="number" step="1" value="44" /></label>
+      <label><span>预览缩放</span><input id="zoom" type="range" min="1" max="6" step="0.5" value="3" /></label>
+      <label>
+        <span>参考</span>
+        <div class="row">
+          <label style="margin: 0"><input id="refWalk" type="checkbox" checked /> 步行</label>
+          <label style="margin: 0"><input id="refRider" type="checkbox" /> 摩托</label>
+          <label style="margin: 0"><input id="refEnemy" type="checkbox" /> 敌方</label>
+        </div>
+      </label>
+      <div class="legend">
+        <span><i class="sw" style="background:#4ade80"></i>新载具</span>
+        <span><i class="sw" style="background:#ffd23f"></i>步行</span>
+        <span><i class="sw" style="background:#4da3ff"></i>摩托</span>
+        <span><i class="sw" style="background:#ff6b5e"></i>敌方</span>
+      </div>
+      <h2>计算结果(游戏内显示尺寸 px)</h2>
+      <pre id="out"></pre>
+    </aside>
+    <script>
+      const canvas = document.getElementById('c');
+      const ctx = canvas.getContext('2d');
+      const els = {
+        file: document.getElementById('file'),
+        frames: document.getElementById('frames'),
+        baseH: document.getElementById('baseH'),
+        scale: document.getElementById('scale'),
+        maxDim: document.getElementById('maxDim'),
+        zoom: document.getElementById('zoom'),
+        refWalk: document.getElementById('refWalk'),
+        refRider: document.getElementById('refRider'),
+        refEnemy: document.getElementById('refEnemy'),
+        out: document.getElementById('out'),
+      };
+
+      /* 参考贴图与配置(与 config.js 的 VEHICLES 一致) */
+      const REFS = {
+        walk: { img: new Image(), frames: 1, baseH: 90, scale: 1, maxDim: 44, color: '#ffd23f', label: '步行' },
+        rider: { img: new Image(), frames: 1, baseH: 90, scale: 1.5, maxDim: 44, color: '#4da3ff', label: '摩托' },
+        enemy: { img: new Image(), frames: 1, baseH: 66, scale: 1, maxDim: 999, color: '#ff6b5e', label: '敌方' },
+      };
+      REFS.walk.img.src = '../assets/贴图/步行.png';
+      REFS.rider.img.src = '../assets/贴图/骑手.png';
+      REFS.enemy.img.src = '../assets/贴图/敌方骑手.png';
+
+      const cand = { img: null, color: '#4ade80', label: '新载具' };
+
+      /* 与 vehicleSize() 相同公式 */
+      function calcSize(img, frames, baseH, scale, maxDim) {
+        if (!img || !img.naturalWidth) return null;
+        const frameW = img.naturalWidth / frames;
+        const ih = img.naturalHeight;
+        let h = baseH * scale;
+        let w = (h * frameW) / ih;
+        if (w > maxDim * scale) {
+          w = maxDim * scale;
+          h = (w * ih) / frameW;
+        }
+        return { w, h, frameW, ih };
+      }
+
+      function fmt(name, r) {
+        if (!r) return name + ': (未加载)\n';
+        return (
+          name +
+          ': ' +
+          r.w.toFixed(1) +
+          ' × ' +
+          r.h.toFixed(1) +
+          ' px\n' +
+          '   (整图 ' +
+          Math.round(r.frameW) +
+          '×' +
+          Math.round(r.ih) +
+          ', 单帧宽 ' +
+          Math.round(r.frameW) +
+          ')\n'
+        );
+      }
+
+      function draw() {
+        const dpr = devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        /* 路面底色 */
+        ctx.fillStyle = '#3a3f45';
+        ctx.fillRect(0, 0, rect.width, rect.height);
+
+        const zoom = +els.zoom.value || 3;
+        const groundY = rect.height * 0.72;
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, groundY);
+        ctx.lineTo(rect.width, groundY);
+        ctx.stroke();
+
+        const items = [];
+        const cframes = +els.frames.value || 1;
+        const cbaseH = +els.baseH.value || 90;
+        const cscale = +els.scale.value || 1;
+        const cmax = +els.maxDim.value || 44;
+        const cr = calcSize(cand.img, cframes, cbaseH, cscale, cmax);
+        if (cr) items.push({ img: cand.img, frames: cframes, r: cr, color: cand.color, label: cand.label });
+
+        for (const key of ['walk', 'rider', 'enemy']) {
+          if (!els['ref' + key[0].toUpperCase() + key.slice(1)].checked) continue;
+          const R = REFS[key];
+          const r = calcSize(R.img, R.frames, R.baseH, R.scale, R.maxDim);
+          if (r) items.push({ img: R.img, frames: R.frames, r, color: R.color, label: R.label });
+        }
+
+        /* 横向排布, 间距按显示宽度 */
+        let totalW = 0;
+        const gap = 40;
+        for (const it of items) totalW += it.r.w * zoom + gap;
+        let x = (rect.width - totalW + gap) / 2;
+        for (const it of items) {
+          const w = it.r.w * zoom;
+          const h = it.r.h * zoom;
+          const frameW = it.img.naturalWidth / it.frames;
+          ctx.save();
+          ctx.translate(x + w / 2, groundY);
+          ctx.drawImage(
+            it.img,
+            0,
+            0,
+            frameW,
+            it.img.naturalHeight,
+            -w / 2,
+            -h,
+            w,
+            h,
+          );
+          ctx.restore();
+          /* 标注 */
+          ctx.fillStyle = it.color;
+          ctx.font = "bold 13px 'PingFang SC','Microsoft YaHei',sans-serif";
+          ctx.textAlign = 'center';
+          ctx.fillText(it.label, x + w / 2, groundY + 22);
+          ctx.fillStyle = 'rgba(255,255,255,0.75)';
+          ctx.font = "12px 'PingFang SC','Microsoft YaHei',sans-serif";
+          ctx.fillText(it.r.w.toFixed(1) + '×' + it.r.h.toFixed(1), x + w / 2, groundY + 40);
+          x += w + gap;
+        }
+
+        /* 结果文本 */
+        let out = '';
+        if (cr) out += fmt(cand.label, cr);
+        else out += cand.label + ': (请选择贴图)\n';
+        out += '\n参考:\n';
+        out += fmt('步行', calcSize(REFS.walk.img, 1, 90, 1, 44));
+        out += fmt('摩托', calcSize(REFS.rider.img, 1, 90, 1.5, 44));
+        out += fmt('敌方', calcSize(REFS.enemy.img, 1, 66, 1, 999));
+        els.out.textContent = out;
+      }
+
+      els.file.addEventListener('change', (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (!f) return;
+        const img = new Image();
+        img.onload = () => {
+          cand.img = img;
+          draw();
+        };
+        img.src = URL.createObjectURL(f);
+      });
+      ['frames', 'baseH', 'scale', 'maxDim', 'zoom', 'refWalk', 'refRider', 'refEnemy'].forEach((id) =>
+        els[id].addEventListener('input', draw),
+      );
+      window.addEventListener('resize', draw);
+      for (const k of Object.keys(REFS)) REFS[k].img.onload = draw;
+      draw();
+    </script>
+  </body>
+</html>

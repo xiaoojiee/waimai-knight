@@ -138,8 +138,8 @@ IMG.item.onload = () => {
 IMG.item.src = 'assets/贴图/道具.png';
 IMG.sign.onload = () => {
   assets.sign = true;
-}; // 警告牌可选
-IMG.sign.src = 'assets/贴图/警告牌.png';
+}; // 路障(原警告牌)可选
+IMG.sign.src = 'assets/贴图/路障.png';
 IMG.police.onload = () => {
   assets.police = true;
   POLICE_BOX = detectSpriteBox(IMG.police); // 精确裁切

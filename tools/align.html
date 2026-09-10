@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>位置微调工具</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #12151a;
+        color: #d7dde5;
+        font: 13px/1.5 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        display: flex;
+        height: 100vh;
+      }
+      canvas {
+        background: #1b2026;
+        cursor: grab;
+        flex: 1;
+        min-width: 0;
+      }
+      canvas.drag {
+        cursor: grabbing;
+      }
+      aside {
+        width: 320px;
+        padding: 16px;
+        background: #161a20;
+        border-left: 1px solid #2a3038;
+        overflow: auto;
+      }
+      h1 {
+        font-size: 15px;
+        margin-bottom: 12px;
+        color: #ffd23f;
+      }
+      label,
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 8px 0;
+      }
+      label span {
+        width: 92px;
+        color: #8b949e;
+        flex-shrink: 0;
+      }
+      input[type='range'] {
+        flex: 1;
+      }
+      input[type='number'] {
+        width: 72px;
+        background: #0e1115;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 4px;
+        padding: 3px 6px;
+      }
+      select,
+      button {
+        background: #21262d;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 4px;
+        padding: 6px 10px;
+        cursor: pointer;
+      }
+      button.primary {
+        background: #3d2f00;
+        border-color: #ffd23f;
+        color: #ffd23f;
+        width: 100%;
+        margin-top: 10px;
+      }
+      pre {
+        background: #0e1115;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 10px;
+        white-space: pre-wrap;
+        color: #9cdcfe;
+        margin-top: 10px;
+      }
+      .hint {
+        color: #8b949e;
+        font-size: 12px;
+        margin: 8px 0 14px;
+      }
+      .ok {
+        color: #4ade80;
+        min-height: 18px;
+        margin-top: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <aside>
+      <h1>位置微调</h1>
+      <p class="hint">拖外卖 / 方向键微移（Shift=大步）。把下面这段发给 AI。</p>
+      <label>
+        <span>底图</span>
+        <select id="base">
+          <option value="rider">玩家骑手</option>
+          <option value="walk">步行</option>
+          <option value="enemy">敌方骑手</option>
+        </select>
+      </label>
+      <label><span>外卖数量</span><input id="count" type="range" min="1" max="12" value="3" /></label>
+      <label>
+        <span>起点 X</span><input id="ox" type="number" step="0.01" value="0" />
+        <small>×width</small>
+      </label>
+      <label>
+        <span>起点 Y</span><input id="oy" type="number" step="0.01" value="-0.25" />
+        <small>×height</small>
+      </label>
+      <label>
+        <span>尺寸</span><input id="sz" type="number" step="1" value="23" />
+        <small>px</small>
+      </label>
+      <label>
+        <span>层间距</span><input id="gap" type="number" step="0.01" value="0.2" />
+        <small>×尺寸</small>
+      </label>
+      <button class="primary" id="copy">复制给 AI</button>
+      <div class="ok" id="ok"></div>
+      <pre id="out"></pre>
+    </aside>
+    <script>
+      const RIDER_SCALE = 1.5;
+      const FOOD_FRAMES = [
+        [0, 0],
+        [0, 1],
+        [1, 0],
+        [1, 1],
+      ];
+      const canvas = document.getElementById('c');
+      const ctx = canvas.getContext('2d');
+      const rider = new Image();
+      const walk = new Image();
+      const enemy = new Image();
+      const food = new Image();
+      rider.src = '../assets/贴图/骑手.png';
+      walk.src = '../assets/贴图/步行.png';
+      enemy.src = '../assets/贴图/敌方骑手.png';
+      food.src = '../assets/贴图/外卖.png';
+      /* 各载具当前配置(与 src/core/config.js 的 VEHICLES 对应) */
+      const VDEF = {
+        rider: { oy: -0.1, sz: 23, gap: 0.2 },
+        walk: { oy: -0.126, sz: 23, gap: 0.2 },
+        enemy: { oy: 0.06, sz: 23, gap: 0.2 },
+      };
+      const st = { ox: 0, oy: -0.1, sz: 23, gap: 0.2, count: 3, zoom: 4 };
+      const els = {
+        ox: document.getElementById('ox'),
+        oy: document.getElementById('oy'),
+        sz: document.getElementById('sz'),
+        gap: document.getElementById('gap'),
+        count: document.getElementById('count'),
+        base: document.getElementById('base'),
+        out: document.getElementById('out'),
+        ok: document.getElementById('ok'),
+      };
+
+      function baseImg() {
+        const v = els.base.value;
+        if (v === 'walk') return walk;
+        if (v === 'enemy') return enemy;
+        return rider;
+      }
+      function sizeOf(img) {
+        const v = els.base.value;
+        const iw = img.naturalWidth || 1;
+        const ih = img.naturalHeight || 1;
+        if (v === 'walk') {
+          /* 步行: 单图 */
+          let h = 90, w = (h * iw) / ih;
+          if (w > 44) { w = 44; h = (w * ih) / iw; }
+          return { w, h };
+        }
+        if (v === 'enemy') {
+          let h = 66, w = (h * iw) / ih;
+          return { w, h };
+        }
+        let h = 90 * RIDER_SCALE, w = (h * iw) / ih;
+        if (w > 44 * RIDER_SCALE) { w = 44 * RIDER_SCALE; h = (w * ih) / iw; }
+        return { w, h };
+      }
+      function report() {
+        const img = baseImg();
+        const { w, h } = sizeOf(img);
+        const px = (st.ox * w).toFixed(1);
+        const py = (st.oy * h).toFixed(1);
+        els.out.textContent =
+          '背上外卖起点:\n' +
+          '  x = width * ' +
+          st.ox.toFixed(3) +
+          '  (' +
+          px +
+          'px)\n' +
+          '  y = height * ' +
+          st.oy.toFixed(3) +
+          '  (' +
+          py +
+          'px)\n' +
+          '外卖尺寸: ' +
+          st.sz +
+          ' px\n' +
+          '堆叠间距: 尺寸 * ' +
+          st.gap.toFixed(3) +
+          '\n' +
+          '相对骑手中心, +y 向下';
+      }
+      function draw() {
+        const dpr = devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = '#1b2026';
+        ctx.fillRect(0, 0, rect.width, rect.height);
+        const img = baseImg();
+        if (!img.naturalWidth || !food.naturalWidth) return;
+        const { w, h } = sizeOf(img);
+        const z = st.zoom;
+        const cx = rect.width / 2;
+        const cy = rect.height / 2;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(z, z);
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.beginPath();
+        ctx.moveTo(-80, 0);
+        ctx.lineTo(80, 0);
+        ctx.moveTo(0, -80);
+        ctx.lineTo(0, 80);
+        ctx.stroke();
+        ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        const fw = food.naturalWidth / 2;
+        const fh = food.naturalHeight / 2;
+        const bs = st.sz;
+        for (let i = 0; i < st.count; i++) {
+          const fr = FOOD_FRAMES[i % FOOD_FRAMES.length];
+          ctx.drawImage(
+            food,
+            fr[0] * fw + 2,
+            fr[1] * fh + 2,
+            fw - 4,
+            fh - 4,
+            st.ox * w - bs / 2,
+            st.oy * h - i * bs * st.gap,
+            bs,
+            bs,
+          );
+        }
+        ctx.fillStyle = '#ffd23f';
+        ctx.beginPath();
+        ctx.arc(st.ox * w, st.oy * h, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        report();
+      }
+      function syncInputs() {
+        els.ox.value = st.ox.toFixed(3);
+        els.oy.value = st.oy.toFixed(3);
+        els.sz.value = st.sz;
+        els.gap.value = st.gap;
+        els.count.value = st.count;
+      }
+      function fromInputs() {
+        st.ox = +els.ox.value || 0;
+        st.oy = +els.oy.value || 0;
+        st.sz = +els.sz.value || 23;
+        st.gap = +els.gap.value || 0.2;
+        st.count = +els.count.value || 3;
+        draw();
+      }
+      ['ox', 'oy', 'sz', 'gap', 'count'].forEach((id) => {
+        document.getElementById(id).addEventListener('input', fromInputs);
+      });
+      /* 切换底图时载入该载具当前配置 */
+      els.base.addEventListener('change', () => {
+        const d = VDEF[els.base.value];
+        if (d) {
+          st.oy = d.oy;
+          st.sz = d.sz;
+          st.gap = d.gap;
+        }
+        syncInputs();
+        draw();
+      });
+      let drag = false;
+      canvas.addEventListener('pointerdown', (e) => {
+        drag = true;
+        canvas.classList.add('drag');
+        canvas.setPointerCapture(e.pointerId);
+        moveTo(e);
+      });
+      canvas.addEventListener('pointermove', (e) => {
+        if (drag) moveTo(e);
+      });
+      canvas.addEventListener('pointerup', () => {
+        drag = false;
+        canvas.classList.remove('drag');
+      });
+      function moveTo(e) {
+        const img = baseImg();
+        const { w, h } = sizeOf(img);
+        const rect = canvas.getBoundingClientRect();
+        const z = st.zoom;
+        st.ox = (e.clientX - rect.left - rect.width / 2) / (w * z);
+        st.oy = (e.clientY - rect.top - rect.height / 2) / (h * z);
+        syncInputs();
+        draw();
+      }
+      window.addEventListener('keydown', (e) => {
+        const step = e.shiftKey ? 0.02 : 0.005;
+        if (e.key === 'ArrowLeft') st.ox -= step;
+        else if (e.key === 'ArrowRight') st.ox += step;
+        else if (e.key === 'ArrowUp') st.oy -= step;
+        else if (e.key === 'ArrowDown') st.oy += step;
+        else return;
+        e.preventDefault();
+        syncInputs();
+        draw();
+      });
+      document.getElementById('copy').onclick = async () => {
+        await navigator.clipboard.writeText(els.out.textContent);
+        els.ok.textContent = '已复制';
+        setTimeout(() => (els.ok.textContent = ''), 1200);
+      };
+      window.addEventListener('resize', draw);
+      rider.onload = walk.onload = enemy.onload = food.onload = draw;
+      syncInputs();
+      draw();
+    </script>
+  </body>
+</html>
