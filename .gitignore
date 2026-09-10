@@ -1,4 +1,5 @@
 node_modules/
 .claude/
 assets/贴图原图/
+assets/新贴图/
 *.zip
