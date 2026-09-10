@@ -2,7 +2,7 @@
 
 /* 犯罪等级 / 警车追击 / 拦车钉(路钉) */
 
-/* global player, clamp, ROAD, game, addFloatText, H, damagePlayer, spawnBoom, enemies, dropFood, WEAPONS, zoneScreenY, ctx, fillRR, IMG, assets, crimeCool:writable, launchEnemy, CRIME_MAX_LVL, contentSize, CRIME_OVER_RATE */
+/* global player, clamp, ROAD, game, addFloatText, H, damagePlayer, spawnBoom, enemies, dropFood, WEAPONS, zoneScreenY, ctx, fillRR, IMG, assets, crimeCool:writable, launchEnemy, CRIME_MAX_LVL, contentSize, CRIME_OVER_RATE, BOUNDS */
 
 /* 等级: 1 小罪无碍 / 2 略有影响 / 3 大型事故 / 4 重大影响(犯罪槽攒满逐级提升) */
 function crimeLevel() {
@@ -101,21 +101,33 @@ function updatePolice(dt) {
     const laneX1 = laneX0 + ROAD.width / 2;
     p.x += (clamp(player.x, laneX0 + 34, laneX1 - 34) - p.x) * Math.min(1, dt * 2);
 
-    /* 撞到玩家: 扣 1/3 血量并弹开 */
-    if (player.hitCd <= 0) {
+    /* 与玩家重叠: 每帧推出(避免卡住), 受击无敌外再结算伤害/弹开 */
+    {
       const dx = p.x - player.x;
       const dy = p.y - player.y;
       const pcs = contentSize(player.vehicle);
       const rx = (pcs.w * 0.6 + 30) * 0.9;
       const ry = (pcs.h * 0.6 + 50) * 0.9;
       if (Math.abs(dx) < rx && Math.abs(dy) < ry) {
-        damagePlayer(POLICE_DMG);
-        const d2 = Math.hypot(dx, dy) || 1;
-        player.kbx = (dx / d2) * 320;
-        player.kby = (dy / d2) * 320;
-        game.shake = 0.5;
-        spawnBoom((p.x + player.x) / 2, (p.y + player.y) / 2);
-        if (p.state === 'surge') p.state = 'retreat'; // 撞完退回
+        /* 沿重叠较小的轴把玩家推出警车 */
+        const overlapX = rx - Math.abs(dx);
+        const overlapY = ry - Math.abs(dy);
+        if (overlapX < overlapY) {
+          player.x += (dx >= 0 ? -1 : 1) * overlapX;
+        } else {
+          player.y += (dy >= 0 ? -1 : 1) * overlapY;
+        }
+        player.x = clamp(player.x, BOUNDS.x0, BOUNDS.x1);
+        player.y = clamp(player.y, BOUNDS.y0, BOUNDS.y1);
+        if (player.hitCd <= 0) {
+          damagePlayer(POLICE_DMG);
+          const d2 = Math.hypot(dx, dy) || 1;
+          player.kbx = (dx / d2) * 320;
+          player.kby = (dy / d2) * 320;
+          game.shake = 0.5;
+          spawnBoom((p.x + player.x) / 2, (p.y + player.y) / 2);
+          if (p.state === 'surge') p.state = 'retreat'; // 撞完退回
+        }
       }
     }
     /* 撞到敌方骑手: 直接撞飞秒杀(不受敌方受击无敌影响), 照常掉落外卖 */
