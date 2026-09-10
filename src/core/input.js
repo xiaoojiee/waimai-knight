@@ -2,7 +2,7 @@
 
 /* 输入: 键盘(WASD/方向键)+ 手机虚拟摇杆 + 外卖按钮点击 */
 
-/* global canvas, input, W, H, game, foodBtn, startBtn, useFood, resetGame, adjustCrime, grantWeapon, player, addFloatText, CEMENT_X, PX_PER_M */
+/* global canvas, input, W, H, game, foodBtn, startBtn, vehicleBtns, vehicleOpenBtn, vehicleBackBtn, useFood, resetGame, adjustCrime, grantWeapon, player, addFloatText, PX_PER_M, makeFood, makeSpecialFood, applySpecialEffect, VEHICLES, applyVehicle, throwBtn, throwFood */
 
 const KEYMAP = {
   ArrowLeft: 'left',
@@ -40,8 +40,44 @@ window.addEventListener('keydown', (e) => {
     /* 数字键 5 获得外卖 */
     if (e.code === 'Digit5') {
       e.preventDefault();
-      player.food = Math.min(99, player.food + 5);
+      for (let i = 0; i < 5 && player.food.length < 99; i++) player.food.push(makeFood());
       addFloatText(player.x, player.y - player.height / 2, '+5 外卖', '#ffd23f');
+      return;
+    }
+    /* 数字键 6: +1 有毒外卖 */
+    if (e.code === 'Digit6') {
+      e.preventDefault();
+      player.food.push(makeFood(true));
+      addFloatText(player.x, player.y - player.height / 2, '+1 有毒外卖', '#4ade80');
+      return;
+    }
+    /* 数字键 7: +1 特殊外卖(随机) */
+    if (e.code === 'Digit7') {
+      e.preventDefault();
+      player.food.push(makeSpecialFood(Math.floor(Math.random() * 4)));
+      addFloatText(player.x, player.y - player.height / 2, '+1 特殊外卖', '#ffd23f');
+      return;
+    }
+    /* 数字键 8/9/0: 直接触发特殊效果(勇猛 / 水果摊 / 焖子) */
+    if (e.code === 'Digit8') {
+      e.preventDefault();
+      applySpecialEffect(0);
+      return;
+    }
+    if (e.code === 'Digit9') {
+      e.preventDefault();
+      applySpecialEffect(2);
+      return;
+    }
+    if (e.code === 'Digit0') {
+      e.preventDefault();
+      applySpecialEffect(1);
+      return;
+    }
+    /* P: 现有食物全部变毒(鸡汤来咯) */
+    if (e.code === 'KeyP') {
+      e.preventDefault();
+      applySpecialEffect(3);
       return;
     }
     /* T: 测试用, 增加 500m 路程快速进入高难度 */
@@ -79,15 +115,31 @@ const JOY_RADIUS = 70;
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   if (!game.started) {
-    /* 开始界面: 点击中间的"开始"按钮才开始游戏 */
     const p = toLogical(e);
-    if (
-      p.x >= startBtn.x &&
-      p.x <= startBtn.x + startBtn.w &&
-      p.y >= startBtn.y &&
-      p.y <= startBtn.y + startBtn.h
-    ) {
-      game.started = true;
+    const hit = (b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
+    if (game.menuScreen === 'vehicle') {
+      /* 出行方式选择界面 */
+      if (hit(vehicleBackBtn)) {
+        game.menuScreen = 'main';
+        return;
+      }
+      for (const type of Object.keys(VEHICLES)) {
+        if (hit(vehicleBtns[type])) {
+          applyVehicle(type);
+          return;
+        }
+      }
+    } else {
+      /* 主菜单 */
+      if (hit(vehicleOpenBtn)) {
+        game.menuScreen = 'vehicle';
+        return;
+      }
+      /* 开始按钮: 应用当前载具(贴图可能刚加载完, 重新算尺寸) */
+      if (hit(startBtn)) {
+        game.started = true;
+        applyVehicle(player.vehicle);
+      }
     }
     return;
   }
@@ -97,19 +149,19 @@ canvas.addEventListener('pointerdown', (e) => {
     return;
   }
   const p = toLogical(e);
-  /* 点击左上角外卖按钮 → 消耗 1 个外卖回血 */
-  if (
-    p.x >= foodBtn.x &&
-    p.x <= foodBtn.x + foodBtn.w &&
-    p.y >= foodBtn.y &&
-    p.y <= foodBtn.y + foodBtn.h
-  ) {
+  const hitBtn = (b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
+  /* 点击回血按钮 → 消耗 1 个外卖回血 */
+  if (hitBtn(foodBtn)) {
     useFood();
     return;
   }
+  /* 点击投掷按钮 → 丢出外卖锁定敌人 */
+  if (hitBtn(throwBtn)) {
+    throwFood();
+    return;
+  }
   if (e.pointerType === 'touch' && !input.joy) {
-    /* 仅路面区域可触发摇杆: 水泥区不响应滑动(留给店铺/按钮) */
-    if (p.y > H * 0.5 && p.x < CEMENT_X) {
+    if (p.y > H * 0.5) {
       input.joy = { id: e.pointerId, ox: p.x, oy: p.y, dx: 0, dy: 0 };
       try {
         canvas.setPointerCapture(e.pointerId);

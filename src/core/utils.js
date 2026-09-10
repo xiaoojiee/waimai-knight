@@ -28,6 +28,91 @@ function fillRR(x, y, w, h, r, color) {
   rr(x, y, w, h, r);
   ctx.fill();
 }
+/* 检测贴图非透明内容包围盒(剔除透明留白) */
+function detectSpriteBox(img) {
+  try {
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const c2d = c.getContext('2d', { willReadFrequently: true });
+    c2d.drawImage(img, 0, 0);
+    const d = c2d.getImageData(0, 0, c.width, c.height).data;
+    const iw = c.width,
+      ih = c.height;
+    const s = 4; // 4px 采样
+    let minX = iw,
+      minY = ih,
+      maxX = 0,
+      maxY = 0;
+    for (let y = 0; y < ih; y += s) {
+      for (let x = 0; x < iw; x += s) {
+        if (d[(y * iw + x) * 4 + 3] > 8) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX <= minX || maxY <= minY) return null;
+    return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+  } catch (_) {
+    return null;
+  }
+}
+
+/* 按 cols×rows 网格切图, 逐格分析非透明内容包围盒(剔除留白); 空帧回退整格 */
+function detectGridFrames(img, cols, rows) {
+  const iw = img.naturalWidth;
+  const ih = img.naturalHeight;
+  const cw = iw / cols;
+  const ch = ih / rows;
+  const out = [];
+  let data;
+  try {
+    const c = document.createElement('canvas');
+    c.width = iw;
+    c.height = ih;
+    const c2d = c.getContext('2d', { willReadFrequently: true });
+    c2d.drawImage(img, 0, 0);
+    data = c2d.getImageData(0, 0, iw, ih).data;
+  } catch (_) {
+    data = null;
+  }
+  for (let r = 0; r < rows; r++) {
+    for (let col = 0; col < cols; col++) {
+      const x0 = Math.round(col * cw);
+      const y0 = Math.round(r * ch);
+      const x1 = Math.round((col + 1) * cw);
+      const y1 = Math.round((r + 1) * ch);
+      if (!data) {
+        out.push({ x: x0, y: y0, w: cw, h: ch });
+        continue;
+      }
+      let minX = x1,
+        minY = y1,
+        maxX = x0,
+        maxY = y0;
+      for (let y = y0; y < y1; y += 2) {
+        for (let x = x0; x < x1; x += 2) {
+          if (data[(y * iw + x) * 4 + 3] > 8) {
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          }
+        }
+      }
+      if (maxX > minX && maxY > minY) {
+        out.push({ x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 });
+      } else {
+        out.push({ x: x0, y: y0, w: cw, h: ch });
+      }
+    }
+  }
+  return out;
+}
+
 /* 通用血条 */
 function drawBar(x, y, ratio, w, h) {
   const r = clamp(ratio, 0, 1);

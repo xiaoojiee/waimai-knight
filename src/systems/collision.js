@@ -2,17 +2,19 @@
 
 /* 玩家与敌骑手碰撞检测 */
 
-/* global player, enemies, game, DMG_SIDE, DMG_FRONT, DMG_REAR, WEAPONS, slashFX, damagePlayer, damageEnemy, spawnBoom */
+/* global player, enemies, game, DMG_SIDE, DMG_FRONT, DMG_REAR, WEAPONS, slashFX, damagePlayer, damageEnemy, spawnBoom, consumeDagger, vehicleDef, contentSize, DASH_DEALT_MUL */
 
 function collide() {
-  const pw = player.width * 0.6;
-  const ph = player.height * 0.55;
+  /* 用可见内容尺寸(剔除透明留白)作为碰撞盒 */
+  const pcs = contentSize(player.vehicle);
+  const pw = pcs.w * 0.9;
+  const ph = pcs.h * 0.75;
   for (const e of enemies) {
     if (e.dead) continue;
     const dx = e.x - player.x;
     const dy = e.y - player.y;
-    const rx = (pw + e.width * 0.7) / 2;
-    const ry = (ph + e.height * 0.7) / 2;
+    const rx = (pw + e.cw * 0.9) / 2;
+    const ry = (ph + e.ch * 0.75) / 2;
     if (Math.abs(dx) >= rx || Math.abs(dy) >= ry) {
       /* 完全脱离碰撞范围 → 解除穿行状态 */
       e.pass = false;
@@ -56,19 +58,21 @@ function collide() {
       e.kby = dir * 340; // 被玩家撞上的敌方飞得更远
     }
 
-    /* 匕首: 撞击时附加伤害并挥向目标 */
+    /* 匕首: 撞击时附加伤害并消耗一把 */
     let extra = 0;
     if (player.weapons.dagger) {
       extra = WEAPONS.dagger.extraDmg;
       const aim = Math.atan2(e.x - player.x, -(e.y - player.y));
       slashFX.push({ x: player.x, y: player.y, aim, life: 0.18, maxLife: 0.18 });
-      player.weapons.dagger.ammo--;
-      if (player.weapons.dagger.ammo <= 0) delete player.weapons.dagger; // 20 次用完消失
+      consumeDagger();
     }
-    /* 敌方匕首: 撞击时对玩家附加伤害 */
+    /* 载具撞击敌人伤害倍率(如步行减半); 冲刺期间大幅提升 */
+    let dmgMul = vehicleDef().damageMul;
+    if (player.buff.dash > 0) dmgMul *= DASH_DEALT_MUL;
+    if (dmgMul !== 1) dmgE = Math.round(dmgE * dmgMul);
     const extraE = e.weapons.includes('dagger') ? 10 : 0;
     damagePlayer(dmgP + extraE);
-    damageEnemy(e, dmgE + extra);
+    damageEnemy(e, dmgE + extra, true); // true: 撞击伤害(触发「焖子」吃敌人效果)
     spawnBoom((player.x + e.x) / 2, (player.y + e.y) / 2);
     game.shake = 0.35;
     e.pass = true; // 本次接触只结算一次, 之后穿行滑过

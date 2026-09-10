@@ -2,7 +2,7 @@
 
 /* 敌方骑手: 生成(前方被超越/后方超车两种)、更新、受击结算与绘制 */
 
-/* global game, ENEMY_MAX, assets, H, ENEMY_DIE_TIME, clamp, ROAD, zone, zoneScreenY, ENEMY_HIT_CD, spawnBoom, dropFood, IMG, ctx, drawBar, player, addFloatText, difficulty, WEAPONS, damagePlayer, W, PX_PER_M */
+/* global game, ENEMY_MAX, assets, H, ENEMY_DIE_TIME, clamp, ROAD, zone, zoneScreenY, ENEMY_HIT_CD, spawnBoom, dropFood, IMG, ctx, drawBar, player, addFloatText, difficulty, WEAPONS, damagePlayer, W, PX_PER_M, spawnSmokeAt, BASE_SPEED, spriteContent, contentSize, EAT_HEAL, ENEMY_SCALE */
 
 const enemies = [];
 const enemyBullets = []; // 敌方子弹 { x, y, vx, vy, dmg, life }
@@ -11,15 +11,10 @@ let enemyTimer = 1.2;
 /* 生成敌方骑手: 'ahead' 从前方出现被玩家超越, 'behind' 从后方超车 */
 function spawnEnemy() {
   const type = Math.random() < 0.5 ? 'ahead' : 'behind';
-  const speed =
+  const worldSpeed =
     type === 'ahead'
-      ? game.speed * (0.35 + Math.random() * 0.15) // 远慢于场景 → 快速滑出屏幕被超越
-      : game.speed * (1.25 + Math.random() * 0.25); // 快于玩家 → 超车
-  let x = ROAD.left + 34 + Math.random() * (ROAD.width - 68);
-  /* 避免直接刷在玩家正前/正后方 */
-  for (let i = 0; i < 5 && Math.abs(x - player.x) < 90; i++) {
-    x = ROAD.left + 34 + Math.random() * (ROAD.width - 68);
-  }
+      ? BASE_SPEED * (0.35 + Math.random() * 0.15)
+      : BASE_SPEED * (1.25 + Math.random() * 0.25);
   /* 随机装备武器: 前 200 米不出现; 之后难度越高概率越高(10%→60%), 敌人只能携带 1 个装备 */
   const d = difficulty();
   let weapons = [];
@@ -27,12 +22,27 @@ function spawnEnemy() {
     const types = ['dagger', 'pistol', 'rifle', 'shield'];
     weapons.push(types[Math.floor(Math.random() * types.length)]);
   }
+  /* 按敌方贴图比例计算尺寸(高度定 66), 以可见内容宽度限制横向范围 */
+  const eih = IMG.enemy.naturalHeight || 1;
+  const eiw = IMG.enemy.naturalWidth || 1;
+  const eH = 66 * ENEMY_SCALE;
+  const eW = (eH * eiw) / eih;
+  const ecs = spriteContent('enemy', eW, eH);
+  const half = ecs.w / 2 + 4;
+  let x = ROAD.left + half + Math.random() * (ROAD.width - half * 2);
+  /* 避免直接刷在玩家正前/正后方 */
+  for (let i = 0; i < 5 && Math.abs(x - player.x) < 90; i++) {
+    x = ROAD.left + half + Math.random() * (ROAD.width - half * 2);
+  }
   enemies.push({
     x,
     y: type === 'ahead' ? -90 : H + 90, // 屏幕外入场
-    speed, // 世界前进速度 px/s
-    width: 66,
-    height: 66, // 敌方贴图绘制尺寸(51 的 1.3 倍)
+    worldSpeed, // 世界前进速度 px/s
+    width: eW,
+    height: eH,
+    cw: ecs.w, // 可见内容宽(用于碰撞/边界/阴影)
+    ch: ecs.h,
+    footY: ecs.footY,
     hp: 30,
     maxHp: 30,
     weapons, // 随机装备的武器(空数组 = 无装备)
@@ -44,9 +54,10 @@ function spawnEnemy() {
     kby: 0, // 撞击弹开冲量(纵向)
     spin: 0, // 死亡翻滚角速度(被警车撞飞时设定)
     wobblePhase: Math.random() * Math.PI * 2,
+    smokeTimer: Math.random() * 0.3,
     dead: false,
-    pass: false, // 碰撞后穿行标记: 完全离开碰撞范围前不再结算
-    dying: false, // 死亡倒下动画
+    pass: false,
+    dying: false,
     dieT: 0,
   });
 }
@@ -61,8 +72,24 @@ function updateEnemies(dt) {
   }
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
+    /* 被吃掉的敌人: 旋转缩小飞向玩家, 抵达后回血 */
+    if (e.eaten) {
+      e.eatT += dt;
+      const dx = player.x - e.x;
+      const dy = player.y - e.y;
+      const d = Math.hypot(dx, dy) || 1;
+      e.x += (dx / d) * 460 * dt;
+      e.y += (dy / d) * 460 * dt;
+      if (d < 36 || e.eatT > 1.6) {
+        player.hp = Math.min(player.maxHp, player.hp + EAT_HEAL);
+        player.healFlash = 0.4;
+        addFloatText(player.x, player.y - player.height / 2, '+' + EAT_HEAL, '#4ade80');
+        enemies.splice(i, 1);
+      }
+      continue;
+    }
     /* 屏幕速度 = 场景速度 - 敌方世界速度: 慢者向后滑, 快者向前超 */
-    e.y += (game.speed - e.speed + e.kby) * dt; // 含撞击弹开冲量
+    e.y += (game.speed - e.worldSpeed + e.kby) * dt;
     if (!e.dying) {
       /* 轻微左右游走, 保持路内 */
       e.x += (Math.sin(game.time * 1.4 + e.wobblePhase) * 42 + e.kbx) * dt;
@@ -79,7 +106,20 @@ function updateEnemies(dt) {
           }
         }
       }
-      e.x = clamp(e.x, ROAD.left + 34, ROAD.left + ROAD.width - 34);
+      const halfW = e.cw / 2 + 4;
+      e.x = clamp(e.x, ROAD.left + halfW, ROAD.left + ROAD.width - halfW);
+
+      /* 敌方车尾烟雾 */
+      e.smokeTimer -= dt;
+      if (e.smokeTimer <= 0) {
+        e.smokeTimer = 0.18 + Math.random() * 0.15;
+        spawnSmokeAt(
+          e.x + (Math.random() - 0.5) * 14,
+          e.y + e.footY,
+          (Math.random() - 0.5) * 40,
+          game.speed * 0.3 + 20,
+        );
+      }
 
       /* 持枪敌人自动向玩家开火 */
       e.gunCd -= dt;
@@ -122,32 +162,41 @@ function updateEnemies(dt) {
   }
 }
 
-function damageEnemy(e, d) {
-  if (e.hitCd > 0) return;
+function damageEnemy(e, d, byRam) {
+  if (e.hitCd > 0) return false;
   /* 敌方盾牌: 格挡若干次伤害 */
   if (e.shieldLeft > 0) {
     e.shieldLeft--;
     e.hitCd = ENEMY_HIT_CD;
     e.flash = 0.3;
     addFloatText(e.x, e.y - e.height / 2, '格挡!', '#4da3ff');
-    return;
+    return true;
   }
   e.hp = Math.max(0, e.hp - d);
   e.hitCd = ENEMY_HIT_CD;
   e.flash = 0.3;
   if (e.hp <= 0) {
-    e.dead = true;
-    e.dying = true; // 统一撞击死亡动画
-    e.dieT = 0;
-    launchEnemy(e, player.x); // 向前上方翻滚飞出
-    spawnBoom(e.x, e.y);
-    dropFood(e.x, e.y); // 掉落若干外卖
+    if (byRam && player.buff.eat > 0) {
+      /* 「焖子」效果: 被玩家吃掉(旋转缩小飞向玩家) */
+      e.dead = true;
+      e.eaten = true;
+      e.eatT = 0;
+      spawnBoom(e.x, e.y);
+    } else {
+      e.dead = true;
+      e.dying = true; // 统一撞击死亡动画
+      e.dieT = 0;
+      launchEnemy(e, player.x); // 向前上方翻滚飞出
+      spawnBoom(e.x, e.y);
+      dropFood(e.x, e.y); // 掉落若干外卖
+    }
   }
+  return true;
 }
 
 /* 撞飞效果: 死亡后向前上方翻滚飞出(被警车撞飞 / 被玩家撞死共用) */
 function launchEnemy(e, fromX) {
-  e.speed = 0; // 撞飞后不再按自身速度行驶, 轨迹完全由弹开冲量决定
+  e.worldSpeed = 0; // 撞飞后不再按自身速度行驶, 轨迹完全由弹开冲量决定
   e.spin = (Math.random() < 0.5 ? -1 : 1) * (5 + Math.random() * 5);
   e.kbx = (e.x >= fromX ? 1 : -1) * (260 + Math.random() * 160);
   e.kby = -(420 + Math.random() * 220); // 向前上方飞出
@@ -159,7 +208,15 @@ function drawEnemies() {
   for (const e of enemies) {
     const wobble = Math.sin(game.time * 1.4 + e.wobblePhase);
     ctx.save();
-    if (e.dying) {
+    if (e.eaten) {
+      /* 被吃掉: 旋转缩小飞入玩家 */
+      const k = Math.max(0.12, 1 - e.eatT * 1.4);
+      ctx.translate(e.x, e.y);
+      ctx.rotate(e.eatT * 12);
+      ctx.scale(k, k);
+      ctx.globalAlpha = Math.max(0, 1 - e.eatT * 0.5);
+      ctx.drawImage(IMG.enemy, -e.width / 2, -e.height / 2, e.width, e.height);
+    } else if (e.dying) {
       /* 统一撞击死亡: 翻滚旋转 + 放大 + 淡出, 位移由弹开冲量驱动 */
       const t = Math.min(1, e.dieT / ENEMY_DIE_TIME);
       const k = t * t; // 加速曲线, 开头变化更明显
@@ -171,10 +228,10 @@ function drawEnemies() {
     } else {
       ctx.translate(e.x, e.y + Math.sin(game.time * 20 + e.wobblePhase) * 1.5);
       ctx.rotate(wobble * 0.08);
-      /* 阴影 */
+      /* 阴影(按可见内容落在脚下) */
       ctx.fillStyle = 'rgba(0,0,0,0.22)';
       ctx.beginPath();
-      ctx.ellipse(0, e.height * 0.08, e.width * 0.45, e.height * 0.45, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, e.footY - e.ch * 0.04, e.cw * 0.45, e.cw * 0.18, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.drawImage(IMG.enemy, -e.width / 2, -e.height / 2, e.width, e.height);
       /* 受击白闪: 叠加提亮, 不再画红框 */
@@ -187,12 +244,12 @@ function drawEnemies() {
       }
     }
     ctx.restore();
-    /* 头顶血条(倒下时不显示) */
-    if (!e.dying) drawBar(e.x, e.y - e.height / 2 - 10, e.hp / e.maxHp, 34, 4);
+    /* 头顶血条(按可见内容顶部, 倒下时不显示) */
+    if (!e.dying) drawBar(e.x, e.y + (e.footY - e.ch) - 8, e.hp / e.maxHp, 34, 4);
     /* 敌方装备: 像玩家一样绕身旋转(枪械自动瞄准玩家) */
     if (!e.dying && e.weapons.length > 0 && assets.item) {
-      const fw = IMG.item.naturalWidth / 3;
-      const fh = IMG.item.naturalHeight / 3;
+      const fw = IMG.item.naturalWidth / 2;
+      const fh = IMG.item.naturalHeight / 2;
       const aim = Math.atan2(player.x - e.x, -(player.y - e.y)); // 指向玩家
       for (const w of e.weapons) {
         const def = WEAPONS[w];
@@ -226,7 +283,7 @@ function updateEnemyBullets(dt) {
     b.y += b.vy * dt;
     const dx = b.x - player.x;
     const dy = b.y - player.y;
-    const r = player.width * 0.5;
+    const r = contentSize(player.vehicle).w * 0.55;
     if (dx * dx + dy * dy < r * r) {
       damagePlayer(b.dmg);
       enemyBullets.splice(i, 1);

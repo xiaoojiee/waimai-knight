@@ -2,7 +2,7 @@
 
 /* 犯罪等级 / 警车追击 / 拦车钉(路钉) */
 
-/* global player, clamp, ROAD, game, addFloatText, H, damagePlayer, spawnBoom, enemies, dropFood, WEAPONS, zoneScreenY, ctx, fillRR, IMG, assets, crimeCool:writable, launchEnemy, CRIME_MAX_LVL */
+/* global player, clamp, ROAD, game, addFloatText, H, damagePlayer, spawnBoom, enemies, dropFood, WEAPONS, zoneScreenY, ctx, fillRR, IMG, assets, crimeCool:writable, launchEnemy, CRIME_MAX_LVL, contentSize, CRIME_OVER_RATE */
 
 /* 等级: 1 小罪无碍 / 2 略有影响 / 3 大型事故 / 4 重大影响(犯罪槽攒满逐级提升) */
 function crimeLevel() {
@@ -35,38 +35,11 @@ const POLICE_DMG = Math.round(100 / 3); // 警车撞击扣 1/3 血量
 /* 警车/路钉贴图的内容包围盒(贴图带透明余量, 精确裁切) */
 let POLICE_BOX = null;
 let SPIKE_BOX = null;
-function detectSpriteBox(img) {
-  try {
-    const c = document.createElement('canvas');
-    c.width = img.naturalWidth;
-    c.height = img.naturalHeight;
-    const c2d = c.getContext('2d', { willReadFrequently: true });
-    c2d.drawImage(img, 0, 0);
-    const d = c2d.getImageData(0, 0, c.width, c.height).data;
-    const iw = c.width,
-      ih = c.height;
-    const s = 4; // 4px 采样
-    let minX = iw,
-      minY = ih,
-      maxX = 0,
-      maxY = 0;
-    for (let y = 0; y < ih; y += s) {
-      for (let x = 0; x < iw; x += s) {
-        if (d[(y * iw + x) * 4 + 3] > 8) {
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-        }
-      }
-    }
-    if (maxX <= minX || maxY <= minY) return null;
-    return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
-  } catch (_) {
-    return null;
-  }
-}
 
+/* 满级过载: 违规越久, 警车/道钉频率越高(无上限) */
+function crimeEscalation() {
+  return 1 + player.crimeOver * CRIME_OVER_RATE;
+}
 function spawnPolice() {
   /* 第二辆走另一条车道 */
   const lane = police.length === 0 ? (Math.random() < 0.5 ? 0 : 1) : police[0].lane === 0 ? 1 : 0;
@@ -75,8 +48,11 @@ function spawnPolice() {
     y: H + 90, // 从屏幕下方入场
     lane,
     state: 'track', // track(下方跟随) / surge(前冲) / retreat(退回)
-    /* 第二辆错开相位, 不与第一辆同时冲撞 */
-    cycleT: (police.length === 1 ? 2.5 : 0) + 1 + Math.random() * 1.5,
+    /* 第二辆错开相位, 不与第一辆同时冲撞; 过载时冲撞更频繁 */
+    cycleT: Math.max(
+      0.15,
+      ((police.length === 1 ? 2.5 : 0) + 1 + Math.random() * 1.5) / crimeEscalation(),
+    ),
     weavePhase: Math.random() * Math.PI * 2,
   });
 }
@@ -88,7 +64,7 @@ function updatePolice(dt) {
     policeTimer -= dt;
     if (policeTimer <= 0 && police.length < want) {
       spawnPolice();
-      policeTimer = 1.2;
+      policeTimer = Math.max(0.15, 1.2 / crimeEscalation());
     }
   } else {
     police.length = 0;
@@ -117,7 +93,7 @@ function updatePolice(dt) {
       p.y += 300 * dt;
       if (p.y >= trackY) {
         p.state = 'track';
-        p.cycleT = 1.5 + Math.random() * 2.5;
+        p.cycleT = Math.max(0.15, (1.5 + Math.random() * 2.5) / crimeEscalation());
       }
     }
     /* 轻微横向跟踪玩家(保持在本车道内) */
@@ -129,8 +105,9 @@ function updatePolice(dt) {
     if (player.hitCd <= 0) {
       const dx = p.x - player.x;
       const dy = p.y - player.y;
-      const rx = (player.width * 0.5 + 30) * 0.9;
-      const ry = (player.height * 0.5 + 50) * 0.9;
+      const pcs = contentSize(player.vehicle);
+      const rx = (pcs.w * 0.6 + 30) * 0.9;
+      const ry = (pcs.h * 0.6 + 50) * 0.9;
       if (Math.abs(dx) < rx && Math.abs(dy) < ry) {
         damagePlayer(POLICE_DMG);
         const d2 = Math.hypot(dx, dy) || 1;
@@ -189,7 +166,7 @@ function updateSpike(dt) {
       }
       if (sy > H + 100) {
         spikeStrip = null;
-        spikeTimer = 4 + Math.random() * 3;
+        spikeTimer = Math.max(0.3, (4 + Math.random() * 3) / crimeEscalation());
       }
     }
   } else {
@@ -246,7 +223,9 @@ function drawSpike() {
   const w = ROAD.width / 2;
   ctx.save();
   if (assets.spike && SPIKE_BOX) {
-    /* 路钉贴图(按内容包围盒裁切) */
+    /* 路钉贴图(按内容包围盒裁切, 保持宽高比) */
+    const drawW = w - 4;
+    const drawH = (drawW * SPIKE_BOX.h) / SPIKE_BOX.w;
     ctx.drawImage(
       IMG.spike,
       SPIKE_BOX.x,
@@ -254,9 +233,9 @@ function drawSpike() {
       SPIKE_BOX.w,
       SPIKE_BOX.h,
       x0 + 2,
-      sy - 16,
-      w - 4,
-      32,
+      sy - drawH / 2,
+      drawW,
+      drawH,
     );
   } else {
     /* 回退: 矢量拦车钉 */

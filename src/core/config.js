@@ -4,11 +4,15 @@
 
 const W = 480,
   H = 800; // 逻辑分辨率
-/* 新道路贴图: 左侧沥青路面(贴图 152~728px 映射), 右侧水泥区(贴图 740px 起)预留给店铺 */
-const ROAD = { left: 63, width: 240 }; // 沥青路面(画布坐标)
-const CEMENT_X = 308; // 水泥区起始(画布坐标): 不响应滑动, 摆放外卖按钮
+/* 道路贴图 路面.png(1536×2048): 左绿化带/人行道 + 沥青 + 右人行道/水泥区
+ * 按画布宽度铺满(scale = W/1536 = 0.3125)标定的边界 */
+const ROAD = { left: 64, width: 232 }; // 沥青路面(画布坐标)
+const CEMENT_X = 340; // 水泥区起始(画布坐标)
+const CEMENT_CRIME_DELAY = 2; // 水泥区停留多久后开始涨犯罪条(秒)
+const CEMENT_CRIME_RATE = 12; // 水泥区犯罪条增速 /s
+const SHOP_RAM_DMG = 20; // 没钱撞飞店铺时的伤害
 
-const TILE_H = 852; // 道路贴图缩放后高度(1152×2048 贴图按画布宽度铺满)
+const TILE_H = 640; // 道路贴图缩放后高度(1536×2048 贴图按画布宽度铺满: 2048×480/1536)
 const LOOP = TILE_H * 20; // 场景无缝循环长度(20 块贴图)
 const PX_PER_M = 20; // 20px 计 1m, 仅用于里程换算
 const BASE_SPEED = 240; // 场景默认前进速度 px/s
@@ -22,11 +26,55 @@ const DMG_REAR = 8;
 const HIT_CD = 0.2; // 玩家受击无敌时间(秒), 防止一帧内多次结算
 const ENEMY_HIT_CD = 0.2; // 敌方受击无敌时间(秒), 保证连续子弹/撞击可连续结算
 const ENEMY_MAX = 3; // 同屏敌骑手上限
+const ENEMY_SCALE = 1.3; // 敌方骑手贴图放大倍数
 const HEAL_AMT = 25; // 点击外卖按钮回复的血量
 const RIDER_SCALE = 1.5; // 玩家贴图缩放倍数
-const FOOD_SIZE = 104; // 外卖掉落绘制尺寸
+const FOOD_SIZE = 31; // 外卖掉落绘制尺寸
+const FOOD_STACK_PX = 23; // 背上堆叠外卖尺寸(px, 各载具统一)
 const ENEMY_DIE_TIME = 0.9; // 敌人倒下动画时长(秒)
 const START_FOOD = 3; // 初始外卖数量
+/* 2×2 四宫格图集 */
+const FOOD_FRAMES = [
+  [0, 0],
+  [0, 1],
+  [1, 0],
+  [1, 1],
+];
+function randFoodFrame() {
+  return FOOD_FRAMES[Math.floor(Math.random() * FOOD_FRAMES.length)];
+}
+/* 一个外卖项: { f: 普通图集帧, poison: 是否有毒, pf: 有毒图集帧, special: 特殊外卖帧(-1 无) }
+ * 有毒外卖用 有毒食物.png(2列×1行); 特殊外卖用 特殊外卖.png(2列×2行) */
+function makeFood(poison) {
+  if (poison) return { f: null, poison: true, pf: Math.floor(Math.random() * 2), special: -1 };
+  return { f: randFoodFrame(), poison: false, pf: 0, special: -1 };
+}
+function makeSpecialFood(idx) {
+  return { f: null, poison: false, pf: 0, special: idx };
+}
+/* 特殊客户帧 → 对应特殊外卖帧(2×2, 行主序): 0-0↔0-0, 0-1↔1-0, 1-0↔0-1, 1-1↔1-1 */
+const SPECIAL_MATCH = [0, 2, 1, 3];
+const SPECIAL_DROP_CHANCE = 0.12; // 敌方掉落特殊外卖概率
+const SPECIAL_CUSTOMER_CHANCE = 0.15; // 生成特殊客户概率
+
+/* 特殊客户效果 */
+const BRAVE_TIME = 6; // 0-0「我超勇的」持续(秒)
+const BRAVE_SPEED_MUL = 2.8; // 冲刺速度倍率
+const BRAVE_DMG_MUL = 0.25; // 受击伤害倍率(大幅减伤)
+const MELON_TIME = 8; // 0-1「水果摊」自动丢西瓜持续(秒)
+const MELON_CD = 0.7; // 丢西瓜间隔(秒)
+const MELON_DMG = 15; // 西瓜伤害
+const MELON_MONEY = 30; // 西瓜命中奖励
+const EAT_TIME = 8; // 1-0「焖子」撞死敌人被吃持续(秒)
+const EAT_HEAL = 50; // 吃掉敌人回血
+const POISON_DROP_CHANCE = 0.15; // 敌方掉落中有毒概率
+const POISON_ROAD_CHANCE = 0.25; // 路边生成中有毒概率
+const POISON_HP = 15; // 玩家误食有毒外卖扣血
+const THROW_DMG = 8; // 投掷普通外卖命中伤害
+const THROW_POISON_DMG = 25; // 投掷有毒外卖命中伤害
+const THROW_SPEED = 560; // 投掷初速 px/s
+const THROW_RANGE = 340; // 自动锁定范围 px
+const THROW_LIFE = 2.2; // 投掷物最长存活(秒), 超时落地
 const FOOD_PRICE = 20; // 送达每个外卖的报酬
 const FOOD_FINE = 8; // 缺少每个外卖的罚款
 const CUSTOMER_DELAY_FIRST_M = 120; // 开局行驶多远后可能出现第一个客户(米)
@@ -34,8 +82,8 @@ const CUSTOMER_INTERVAL_MIN_M = 60; // 客户间隔距离下限(米)
 const CUSTOMER_INTERVAL_MAX_M = 150; // 客户间隔距离上限(米)
 const CUSTOMER_SPAWN_CHANCE = 0.6; // 到达距离阈值时的生成概率
 
-/* 装备(道具图集 3×3: 匕首/剑/弯刀/手枪/步枪/机枪/盾牌×3, 只启用匕首/手枪/步枪/盾牌)
- * 手枪贴图枪口朝左 → 右转 90° 指向上方; 步枪贴图朝左上 → 右转 45° 指向上方 */
+/* 装备(道具图集 2×2: 行-列 0-0 匕首 / 0-1 手枪 / 1-0 步枪 / 1-1 盾牌)
+ * frame 存 [列, 行]; 贴图朝向: 匕首朝上, 手枪朝右, 步枪朝右上 */
 const WEAPONS = {
   dagger: {
     frame: [0, 0],
@@ -43,32 +91,32 @@ const WEAPONS = {
     label: '匕首',
     color: '#c0392b',
     baseRot: 0,
-    uses: 20,
+    uses: 5,
     extraDmg: 15,
   },
   pistol: {
-    frame: [0, 1], // 实际图集: [1,0] 是长剑, 手枪在 [1,1](枪口朝右上)
+    frame: [1, 0], // 0-1: 第一行第二个
     price: 70,
     label: '手枪',
     color: '#2980b9',
-    baseRot: Math.PI / 2, // 逆时针 45° 使枪口朝上
+    baseRot: Math.PI / 2, // 枪口朝向校正(再转 180°)
     ammo: 6,
     dmg: 12,
     rate: 0.45,
   },
   rifle: {
-    frame: [1, 1], // 大枪在 [1,2](枪口朝右上), 用作步枪
+    frame: [0, 1], // 1-0: 第二行第一个
     price: 120,
     label: '步枪',
     color: '#27ae60',
-    baseRot: Math.PI / 4,
+    baseRot: -Math.PI / 4, // 枪口朝右上 → 顺时针 45° 使指向朝上
     ammo: 15,
     dmg: 15,
     rate: 0.3,
   },
-  shield: { frame: [2, 2], price: 60, label: '盾牌', color: '#8e44ad', baseRot: 0, charges: 3 },
+  shield: { frame: [1, 1], price: 60, label: '盾牌', color: '#8e44ad', baseRot: 0, charges: 3 },
 };
-/* 店铺图集 3×3 帧位(行主序): 外卖店 / 刀店 / 手枪店 / 步枪店 / 护盾店 */
+/* 店铺图集 3列×2行 帧位([列,行]): 外卖店 / 刀店 / 手枪店 / 步枪店 / 护盾店 */
 const SHOP_FRAMES = {
   restaurant: [0, 0],
   dagger: [1, 0],
@@ -92,3 +140,151 @@ const ZONE_LEN_MAX = 900; // 施工路段长度上限(px)
 const ZONE_ANCHOR_Y = H * 0.66; // 世界坐标 → 屏幕 y 锚点(玩家标称位置)
 const CRIME_SPEED_LIMIT = BASE_SPEED + 60; // 超过此速度算超速, 涨犯罪条
 const CRIME_MAX_LVL = 4; // 犯罪等级上限(犯罪槽攒满自动升一级, 太刀气刃槽式)
+const BRAVE_CRIME_MUL = 0.1; // 「我超勇的」期间犯罪累积倍率
+const CRIME_OVER_RATE = 0.12; // 满级后每秒提升的警车/道钉频率(无上限)
+
+/* =====================================================================
+ * 载具/操控方式配置
+ * 新增载具: 在 assets.js 里加载对应贴图, 然后在此添加一项即可
+ * ---------------------------------------------------------------------
+ *  label      开始界面显示名
+ *  desc       开始界面说明
+ *  img        IMG 里的贴图键名(assets.js 加载)
+ *  frames     贴图横向帧数(1 = 单帧, 2 = 两帧动画)
+ *  anim       动画方式: 'none' 无 | 'step' 迈步(切帧扬尘)
+ *  scale      贴图缩放(相对 baseH)
+ *  maxDim     宽度上限(缩放前)
+ *  baseH      基准高度(缩放前)
+ *  maxHp      最大血量
+ *  baseSpeed  场景基础速度 px/s
+ *  maxSpeed   速度上限 px/s
+ *  moveSpeed  横向/前后移动速度 px/s
+ *  brake      前后速度影响系数(越小刹车越弱)
+ *  damageMul  撞击敌人伤害倍率
+ *  foodY      背负外卖起点 y(×height); 尺寸统一用 FOOD_STACK_PX
+ *  foodGap    外卖层间距(×尺寸)
+ *  foodSlowMax/foodSlowPer  超过该数量后每个外卖的减速比例
+ *  smoke      'continuous' 连续车尾烟 | 'step' 切帧扬尘
+ *  cementCrime 是否在水泥区涨犯罪条
+ * ===================================================================== */
+const VEHICLES = {
+  walk: {
+    label: '步行',
+    desc: '腿着跑',
+    img: 'walk',
+    frames: 1,
+    anim: 'bob', // 单图上下抖动模拟步行
+    stepInterval: 0.4, // 每步间隔(秒)
+    bobAmp: 5, // 上下抖动幅度(px)
+    scale: 1,
+    maxDim: 44,
+    baseH: 90,
+    maxHp: 60,
+    baseSpeed: 83, // 约 15km/h
+    maxSpeed: 167, // 约 30km/h
+    moveSpeed: 83,
+    brake: 0.5,
+    damageMul: 0.5,
+    foodY: -0.126,
+    foodGap: 0.2,
+    foodSlowMax: 8,
+    foodSlowPer: 0.06,
+    smoke: 'step',
+    cementCrime: false,
+  },
+  rider: {
+    label: '小电驴',
+    desc: '标准设备',
+    img: 'rider',
+    frames: 1,
+    anim: 'none',
+    scale: RIDER_SCALE,
+    maxDim: 44,
+    baseH: 90,
+    maxHp: 100,
+    baseSpeed: BASE_SPEED,
+    maxSpeed: SPEED_MAX,
+    moveSpeed: 330,
+    brake: 1,
+    damageMul: 1,
+    foodY: -0.1, // 背上外卖起点 y(×height)
+    foodGap: 0.2,
+    smoke: 'continuous',
+    cementCrime: true,
+  },
+  cow: {
+    label: '牛来',
+    desc: '牛来！！',
+    img: 'cow',
+    frames: 1,
+    anim: 'none',
+    scale: 1.5,
+    maxDim: 44,
+    baseH: 90,
+    maxHp: 150,
+    baseSpeed: 150, // 介于步行(83)与骑行(240)之间
+    maxSpeed: 260,
+    moveSpeed: 200,
+    brake: 1,
+    damageMul: 1.8, // 撞击伤害高
+    foodY: -0.1,
+    foodGap: 0.2,
+    smoke: 'dust', // 连续扬尘
+    cementCrime: true,
+    dashOnEat: true, // 食用外卖后向前冲刺
+  },
+  car: {
+    label: '跑车',
+    desc: '提新车了',
+    img: 'car',
+    frames: 1,
+    anim: 'none',
+    scale: 2,
+    maxDim: 44,
+    baseH: 90,
+    maxHp: 130, // 骑行升级版: 全属性更高
+    baseSpeed: 290,
+    maxSpeed: 470,
+    moveSpeed: 360,
+    brake: 1,
+    damageMul: 1.3,
+    foodY: -0.1,
+    foodGap: 0.2,
+    smoke: 'continuous',
+    cementCrime: true,
+    speedLimit: 420, // 跑车: 犯罪限速更高
+  },
+  train: {
+    label: '火车头',
+    desc: '心脏还有点问题',
+    img: 'train',
+    frames: 1,
+    anim: 'none',
+    scale: 1,
+    maxDim: 44,
+    baseH: 90,
+    maxHp: 180,
+    baseSpeed: 640, // 极快(S 级, 面板冲破圆框)
+    maxSpeed: 850,
+    moveSpeed: 340,
+    brake: 1,
+    damageMul: 1.2,
+    damageTakenMul: 0.5, // 受到的撞击伤害低
+    foodY: -0.1,
+    foodGap: 0.2,
+    smoke: 'continuous',
+    cementCrime: true,
+    hpDrain: true, // 血量持续下降
+  },
+};
+
+/* 火车头: 血量持续下降, 随速度与游戏时间增加而加剧 */
+const TRAIN_DRAIN_BASE = 0.7; // 基础扣血 HP/s
+const TRAIN_DRAIN_SPEED_REF = 200; // 速度参考
+const TRAIN_DRAIN_TIME_RATE = 0.012; // 每秒游戏时间增加的扣血系数
+
+/* 载具「牛」食用外卖后的冲刺 */
+const DASH_TIME = 1.2; // 冲刺持续(秒)
+const DASH_SPEED_MUL = 2.2; // 冲刺时默认滚动速度倍率
+const DASH_DEALT_MUL = 3; // 冲刺时撞击敌人伤害倍率
+const DASH_TAKEN_MUL = 0.3; // 冲刺时受到伤害倍率

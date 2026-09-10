@@ -2,7 +2,7 @@
 
 /* 施工路段(占用半边车道, 黄色斜纹提示) + 犯罪条 */
 
-/* global game, PX_PER_M, ZONE_DELAY_FIRST_M, ZONE_INTERVAL_MIN_M, ZONE_INTERVAL_MAX_M, ZONE_LEN_MIN, ZONE_LEN_MAX, ZONE_ANCHOR_Y, H, ROAD, player, ctx, fillRR, rr, IMG, assets, clamp, CRIME_SPEED_LIMIT, CRIME_MAX_LVL, addFloatText, difficulty */
+/* global game, PX_PER_M, ZONE_DELAY_FIRST_M, ZONE_INTERVAL_MIN_M, ZONE_INTERVAL_MAX_M, ZONE_LEN_MIN, ZONE_LEN_MAX, ZONE_ANCHOR_Y, H, ROAD, player, ctx, fillRR, rr, IMG, assets, clamp, CRIME_SPEED_LIMIT, CRIME_MAX_LVL, addFloatText, difficulty, CEMENT_X, CEMENT_CRIME_DELAY, CEMENT_CRIME_RATE, vehicleDef, BRAVE_CRIME_MUL */
 
 let zone = null; // 当前施工路段 { side, worldStart, worldEnd }
 let nextZoneDist = ZONE_DELAY_FIRST_M * PX_PER_M; // 下一个施工路段出现的距离阈值(px)
@@ -98,18 +98,29 @@ function updateZone(dt) {
  * 停止犯罪一段时间后槽衰减, 槽空则降一级(最低 1 级) */
 function updateCrime(dt) {
   let gain = 0;
-  /* 超速(全局): 超得越多涨得越快(平方曲线) */
-  const speedOver = game.speed - CRIME_SPEED_LIMIT;
+  /* 超速(全局): 超得越多涨得越快(平方曲线); 不同载具限速不同(跑车更高) */
+  const limit = vehicleDef().speedLimit || CRIME_SPEED_LIMIT;
+  const speedOver = game.speed - limit;
   if (speedOver > 0) gain += (speedOver / 200) * (speedOver / 200) * 45 * dt;
   /* 施工占用车道内(玩家可以进入, 但要付出代价) */
   if (zone) {
     const zy0 = zoneScreenY(zone.worldStart);
     const zy1 = zoneScreenY(zone.worldEnd);
     const mid = ROAD.left + ROAD.width / 2;
-    const inOccupied = zone.side === 0 ? player.x < mid : player.x > mid;
+    const onRoad = player.x <= ROAD.left + ROAD.width;
+    const inOccupied = onRoad && (zone.side === 0 ? player.x < mid : player.x > mid);
     if (player.y > zy1 && player.y < zy0 && inOccupied) gain += 14 * dt;
   }
+  /* 水泥区: 按载具配置决定是否涨犯罪条(步行不涨) */
+  if (player.x >= CEMENT_X && vehicleDef().cementCrime) {
+    player.cementT += dt;
+    if (player.cementT >= CEMENT_CRIME_DELAY) gain += CEMENT_CRIME_RATE * dt;
+  } else {
+    player.cementT = 0;
+  }
   if (gain > 0) {
+    /* 「我超勇的」: 犯罪累积速率降到 10% */
+    if (player.buff.brave > 0) gain *= BRAVE_CRIME_MUL;
     player.crime += gain;
     crimeCool = 2; // 停止犯罪 2 秒后开始衰减
     /* 槽满 → 升一级并清槽(最高 CRIME_MAX_LVL, 满级后槽停在满格) */
@@ -123,8 +134,13 @@ function updateCrime(dt) {
         '#ff9d5c',
       );
     }
-    if (player.crimeLvl >= CRIME_MAX_LVL) player.crime = Math.min(player.crime, 100);
+    if (player.crimeLvl >= CRIME_MAX_LVL) {
+      player.crime = Math.min(player.crime, 100);
+      /* 满级后继续违规: 过载计时无限增长, 提升警车/道钉频率 */
+      player.crimeOver += dt;
+    }
   } else {
+    player.crimeOver = Math.max(0, player.crimeOver - dt);
     crimeCool -= dt;
     if (crimeCool <= 0) {
       player.crime -= 8 * dt;

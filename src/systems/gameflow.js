@@ -2,7 +2,7 @@
 
 /* 游戏流程: 结束与重新开始 */
 
-/* global game, player, W, H, BASE_SPEED, enemies, boomParts, smokeParts, pickups, floatTexts, START_FOOD, CUSTOMER_DELAY_FIRST_M, PX_PER_M, SHOP_DELAY_FIRST_M, REST_DELAY_FIRST_M, ZONE_DELAY_FIRST_M, zoneSigns, police, bullets, slashFX, spawnBoom, spawnSmokeAt, customer:writable, nextCustomerDist:writable, shop:writable, nextShopDist:writable, restaurant:writable, nextRestDist:writable, zone:writable, nextZoneDist:writable, crimeCool:writable, policeTimer:writable, spikeStrip:writable, spikeTimer:writable, enemyTimer:writable */
+/* global game, player, W, H, BASE_SPEED, VEHICLES, enemies, boomParts, smokeParts, pickups, floatTexts, START_FOOD, CUSTOMER_DELAY_FIRST_M, PX_PER_M, SHOP_DELAY_FIRST_M, REST_DELAY_FIRST_M, ZONE_DELAY_FIRST_M, zoneSigns, police, bullets, slashFX, spawnBoom, spawnSmokeAt, makeFood, applyVehicle, thrownFood, roadFoodTimer:writable, screenMsg, customer:writable, nextCustomerDist:writable, shop:writable, nextShopDist:writable, restaurant:writable, nextRestDist:writable, zone:writable, nextZoneDist:writable, crimeCool:writable, policeTimer:writable, spikeStrip:writable, spikeTimer:writable, enemyTimer:writable */
 
 function gameOver() {
   if (!game.overReason) game.overReason = 'hp';
@@ -26,8 +26,9 @@ function resetGame() {
   game.overReason = '';
   game.distance = 0;
   game.totalDist = 0;
-  game.speed = BASE_SPEED;
+  game.speed = VEHICLES.walk.baseSpeed;
   game.shake = 0;
+  game.menuScreen = 'main';
   player.x = W / 2;
   player.y = H * 0.66;
   player.vx = 0;
@@ -42,8 +43,11 @@ function resetGame() {
   boomParts.length = 0;
   smokeParts.length = 0;
   pickups.length = 0;
+  thrownFood.length = 0;
+  roadFoodTimer = 3;
   floatTexts.length = 0;
-  player.food = START_FOOD;
+  player.food = Array.from({ length: START_FOOD }, () => makeFood());
+  player.foodLag = [];
   player.money = 0;
   player.healFlash = 0;
   customer = null;
@@ -57,8 +61,15 @@ function resetGame() {
   nextZoneDist = ZONE_DELAY_FIRST_M * PX_PER_M;
   player.crime = 0;
   player.crimeLvl = 1;
+  player.crimeOver = 0;
   crimeCool = 0;
   player.slowT = 0;
+  player.buff = { brave: 0, melon: 0, eat: 0, dash: 0 };
+  player.melonCd = 0;
+  screenMsg.text = '';
+  screenMsg.life = 0;
+  /* 恢复默认载具(步行), 统一由 applyVehicle 设置尺寸/血量/移速 */
+  applyVehicle('walk');
   police.length = 0;
   policeTimer = 0;
   spikeStrip = null;

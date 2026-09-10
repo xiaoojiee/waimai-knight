@@ -5,7 +5,7 @@
 /* global assets, IMG, ctx */
 
 const boomParts = [];
-function spawnBoom(x, y) {
+function spawnBoom(x, y, frame) {
   if (!assets.boom) return;
   boomParts.push({
     x,
@@ -13,6 +13,7 @@ function spawnBoom(x, y) {
     life: 0,
     maxLife: 0.45,
     rot: Math.random() * Math.PI * 2,
+    frame: frame || [3, 3],
   });
 }
 function updateBoom(dt) {
@@ -34,11 +35,12 @@ function drawBoom() {
     ctx.globalAlpha = (1 - t) * 0.9;
     ctx.translate(p.x, p.y);
     ctx.rotate(p.rot);
-    /* 最后一帧 [3,3], 边缘内收防串色 */
+    const fc = p.frame[0];
+    const fr = p.frame[1];
     ctx.drawImage(
       IMG.boom,
-      3 * fw + 4,
-      3 * fh + 4,
+      fc * fw + 4,
+      fr * fh + 4,
       fw - 8,
       fh - 8,
       -size / 2,

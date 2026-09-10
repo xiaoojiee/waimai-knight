@@ -10,15 +10,27 @@ const SMOKE = {
 const smokeParts = [];
 let smokeTimer = 0;
 
-/* 烟雾粒子: 随速度增多 */
+/* 连续车尾烟雾发射(骑手类载具): 速度越快间隔越短 */
 function updateSmoke(dt) {
-  /* 发射: 速度越快间隔越短(默认速度约 0.19s/个, 极速约 0.1s/个) */
   smokeTimer += dt;
   const interval = 45 / game.speed;
   while (smokeTimer >= interval) {
     smokeTimer -= interval;
     spawnSmoke();
   }
+}
+/* 连续扬尘发射(牛等): 速度越快间隔越短 */
+let dustTimer = 0;
+function updateDust(dt) {
+  dustTimer += dt;
+  const interval = 55 / game.speed;
+  while (dustTimer >= interval) {
+    dustTimer -= interval;
+    spawnWalkDust();
+  }
+}
+/* 粒子运动与消亡(所有载具通用, 每帧调用) */
+function updateSmokeParticles(dt) {
   for (let i = smokeParts.length - 1; i >= 0; i--) {
     const p = smokeParts[i];
     p.life += dt;
@@ -42,7 +54,7 @@ function spawnSmoke() {
     game.speed * (0.35 + Math.random() * 0.25) + 20,
   );
 }
-function spawnSmokeAt(x, y, vx, vy) {
+function spawnSmokeAt(x, y, vx, vy, dust) {
   if (!assets.smoke || smokeParts.length >= 40) return;
   smokeParts.push({
     x,
@@ -56,15 +68,27 @@ function spawnSmokeAt(x, y, vx, vy) {
     rot: (Math.random() - 0.5) * 1.2,
     spin: (Math.random() - 0.5) * 1.5,
     frame: Math.floor(Math.random() * SMOKE.frames.length),
+    dust: !!dust, // 扬尘(画在载具贴图之上) vs 车尾烟雾(画在下方)
   });
 }
 
-/* ---- 烟雾粒子绘制 ---- */
-function drawSmoke() {
+/* 扬尘: 在玩家脚边产生一颗尘粒 */
+function spawnWalkDust() {
+  spawnSmokeAt(
+    player.x + (Math.random() - 0.5) * 12,
+    player.y + player.height * 0.4,
+    (Math.random() - 0.5) * 40,
+    -(15 + Math.random() * 25),
+    true,
+  );
+}
+/* ---- 粒子绘制(dustOnly: true 只画扬尘, false 只画车尾烟雾) ---- */
+function drawSmokeParticles(dustOnly) {
   if (!assets.smoke) return;
   const fw = IMG.smoke.naturalWidth / 4; // 4×4 图集, 每格 512
   const fh = IMG.smoke.naturalHeight / 4;
   for (const p of smokeParts) {
+    if (p.dust !== dustOnly) continue;
     const t = p.life / p.maxLife;
     const alpha = (t < 0.2 ? t / 0.2 : 1 - (t - 0.2) / 0.8) * 0.55; // 快速淡入→线性淡出
     const size = p.size * (1 + (p.grow - 1) * t); // 随生命周期膨胀
@@ -87,4 +111,10 @@ function drawSmoke() {
     );
     ctx.restore();
   }
+}
+function drawSmoke() {
+  drawSmokeParticles(false);
+}
+function drawDust() {
+  drawSmokeParticles(true);
 }

@@ -1,23 +1,14 @@
 'use strict';
 
-/* 外卖掉落与拾取(敌方死亡掉落/回血按钮) */
+/* 外卖: 掉落/拾取/回血/投掷(含毒外卖) */
 
-/* global assets, clamp, ROAD, player, game, addFloatText, HEAL_AMT, IMG, ctx, FOOD_SIZE, H */
+/* global assets, clamp, ROAD, player, game, addFloatText, gameOver, HEAL_AMT, IMG, ctx, FOOD_SIZE, H, W, makeFood, makeSpecialFood, difficulty, POISON_DROP_CHANCE, POISON_ROAD_CHANCE, POISON_HP, THROW_DMG, THROW_POISON_DMG, THROW_SPEED, THROW_RANGE, THROW_LIFE, SPECIAL_DROP_CHANCE, MELON_DMG, MELON_MONEY, DASH_TIME, vehicleDef, enemies, damageEnemy, spawnBoom */
 
-/* 3×3 图集, 中间 [1,1] 为空, 取其余 8 帧 */
-const FOOD_FRAMES = [
-  [0, 0],
-  [0, 1],
-  [0, 2],
-  [1, 0],
-  [1, 2],
-  [2, 0],
-  [2, 1],
-  [2, 2],
-];
 const pickups = [];
+let roadFoodTimer = 3; // 路边外卖生成计时
+const thrownFood = []; // 投掷中的外卖 { x, y, vx, vy, food, life, target }
 
-/* 敌方死亡掉落 2~3 个外卖 */
+/* 敌方死亡掉落 2~3 个外卖(小概率有毒) */
 function dropFood(x, y) {
   if (!assets.food) return;
   const n = 2 + Math.floor(Math.random() * 2);
@@ -31,6 +22,11 @@ function dropFood(x, y) {
     /* 往前(屏幕上方向)斜着撒出, 横向偏向空间更广阔的一侧 */
     const dx = dir * spread * (0.3 + Math.random() * 0.7);
     const dy = -(25 + Math.random() * 55);
+    /* 小概率掉落特殊外卖, 其次有毒 */
+    const item =
+      Math.random() < SPECIAL_DROP_CHANCE
+        ? makeSpecialFood(Math.floor(Math.random() * 4))
+        : makeFood(Math.random() < POISON_DROP_CHANCE);
     pickups.push({
       x: clamp(x + dx, ROAD.left + margin, ROAD.left + ROAD.width - margin),
       y: clamp(y + dy, 60, H - 60),
@@ -38,12 +34,34 @@ function dropFood(x, y) {
       vy: -(240 + Math.random() * 180), // 向前滑行的初速度(带惯性)
       life: 0,
       maxLife: 7,
-      frame: FOOD_FRAMES[Math.floor(Math.random() * FOOD_FRAMES.length)],
+      food: item,
     });
   }
 }
 
+/* 路边零散外卖: 随机生成在路面上, 随场景滚动(中等概率有毒) */
+function spawnRoadFood() {
+  if (!assets.food) return;
+  const margin = 50;
+  pickups.push({
+    x: ROAD.left + margin + Math.random() * (ROAD.width - margin * 2),
+    y: -30,
+    vx: 0,
+    vy: 0,
+    life: 0,
+    maxLife: 10,
+    food: makeFood(Math.random() < POISON_ROAD_CHANCE),
+    road: true,
+  });
+}
+
 function updatePickups(dt) {
+  /* 路边外卖定时生成: 难度越高越频繁 */
+  roadFoodTimer -= dt;
+  if (roadFoodTimer <= 0 && !game.over) {
+    spawnRoadFood();
+    roadFoodTimer = (4 + Math.random() * 5) * (1 - difficulty() * 0.4);
+  }
   for (let i = pickups.length - 1; i >= 0; i--) {
     const f = pickups[i];
     f.life += dt;
@@ -55,8 +73,8 @@ function updatePickups(dt) {
     const dx = f.x - player.x;
     const dy = f.y - player.y;
     if (dx * dx + dy * dy < 55 * 55) {
-      player.food++;
-      addFloatText(f.x, f.y, '+1', '#ffd23f');
+      player.food.push(f.food); // 捡到的外卖叠到背上(新捡的在上方)
+      addFloatText(f.x, f.y, '+1', f.food.poison ? '#4ade80' : '#ffd23f');
       pickups.splice(i, 1);
       continue;
     }
@@ -64,20 +82,219 @@ function updatePickups(dt) {
   }
 }
 
-/* 点击外卖按钮: 消耗 1 个外卖回血 */
+/* 最下方(最早捡的)非特殊外卖的下标; 没有返回 -1(特殊外卖留给特殊客户) */
+function oldestNonSpecialIndex() {
+  for (let i = 0; i < player.food.length; i++) {
+    if (player.food[i].special < 0) return i;
+  }
+  return -1;
+}
+
+/* 点击外卖按钮: 消耗最下方(最早捡的)非特殊外卖; 有毒则扣血 */
 function useFood() {
-  if (player.food <= 0 || game.over || player.hp >= player.maxHp) return;
-  player.food--;
-  player.hp = Math.min(player.maxHp, player.hp + HEAL_AMT);
-  player.healFlash = 0.4;
-  addFloatText(player.x, player.y - player.height / 2, '+' + HEAL_AMT, '#4ade80');
+  if (player.food.length <= 0 || game.over) return;
+  const i = oldestNonSpecialIndex();
+  if (i < 0) return;
+  const item = player.food[i];
+  if (!item.poison && player.hp >= player.maxHp) return; // 满血不吃普通外卖, 避免浪费
+  player.food.splice(i, 1);
+  if (item.poison) {
+    player.hp = Math.max(0, player.hp - POISON_HP);
+    player.flash = 0.4;
+    addFloatText(player.x, player.y - player.height / 2, '-' + POISON_HP + ' 有毒!', '#ff6b6b');
+    if (player.hp <= 0) gameOver();
+  } else {
+    player.hp = Math.min(player.maxHp, player.hp + HEAL_AMT);
+    player.healFlash = 0.4;
+    addFloatText(player.x, player.y - player.height / 2, '+' + HEAL_AMT, '#4ade80');
+    /* 载具「牛」: 食用外卖后向前冲刺一段距离 */
+    if (vehicleDef().dashOnEat) {
+      player.buff.dash = DASH_TIME;
+      addFloatText(player.x, player.y - player.height / 2 - 16, '冲刺!', '#ffd23f');
+    }
+  }
+}
+
+/* 最近的敌人(投掷锁定范围) */
+function nearestThrowTarget() {
+  let best = null;
+  let bd = THROW_RANGE * THROW_RANGE;
+  for (const e of enemies) {
+    if (e.dead || e.dying) continue;
+    const d = (e.x - player.x) ** 2 + (e.y - player.y) ** 2;
+    if (d < bd) {
+      bd = d;
+      best = e;
+    }
+  }
+  return best;
+}
+
+/* 点击投掷按钮: 丢出最下方外卖, 自动锁定敌人; 附近无敌人则随机方向 */
+function throwFood() {
+  if (player.food.length <= 0 || game.over) return;
+  const i = oldestNonSpecialIndex();
+  if (i < 0) return;
+  const item = player.food.splice(i, 1)[0];
+  const target = nearestThrowTarget();
+  let ang;
+  if (target) {
+    ang = Math.atan2(target.x - player.x, -(target.y - player.y));
+  } else {
+    ang = -Math.PI / 2 + (Math.random() - 0.5) * 1.2; // 大致朝前随机
+  }
+  thrownFood.push({
+    x: player.x,
+    y: player.y - player.height * 0.15,
+    vx: Math.sin(ang) * THROW_SPEED,
+    vy: -Math.cos(ang) * THROW_SPEED,
+    food: item,
+    life: 0,
+    target,
+    dmg: item.poison ? THROW_POISON_DMG : THROW_DMG,
+    money: 0,
+  });
+  addFloatText(
+    player.x,
+    player.y - player.height / 2,
+    item.poison ? '投掷 有毒!' : '投掷',
+    item.poison ? '#4ade80' : '#ffd23f',
+  );
+}
+
+/* 0-1 特殊效果: 自动丢出西瓜(对应特殊外卖帧 2), 命中造成伤害并得钱 */
+function throwMelon(target) {
+  const ang = Math.atan2(target.x - player.x, -(target.y - player.y));
+  thrownFood.push({
+    x: player.x,
+    y: player.y - player.height * 0.15,
+    vx: Math.sin(ang) * THROW_SPEED,
+    vy: -Math.cos(ang) * THROW_SPEED,
+    food: { special: 2, poison: false, f: null },
+    life: 0,
+    target,
+    dmg: MELON_DMG,
+    money: MELON_MONEY,
+    melon: true,
+  });
+}
+
+function updateThrownFood(dt) {
+  for (let i = thrownFood.length - 1; i >= 0; i--) {
+    const t = thrownFood[i];
+    t.life += dt;
+    /* 自动锁定: 轻微转向目标 */
+    if (t.target && !t.target.dead && !t.target.dying) {
+      const dx = t.target.x - t.x;
+      const dy = t.target.y - t.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const steer = Math.min(1, dt * 7);
+      t.vx += ((dx / d) * THROW_SPEED - t.vx) * steer;
+      t.vy += ((dy / d) * THROW_SPEED - t.vy) * steer;
+    }
+    t.x += t.vx * dt;
+    t.y += t.vy * dt + game.speed * 0.5 * dt; // 随场景略后移
+    /* 命中敌人 */
+    let hit = false;
+    for (const e of enemies) {
+      if (e.dead || e.dying) continue;
+      const r = e.cw * 0.7 + 6;
+      const dx = e.x - t.x;
+      const dy = e.y - t.y;
+      if (dx * dx + dy * dy < r * r) {
+        damageEnemy(e, t.dmg);
+        spawnBoom(t.x, t.y);
+        if (t.money) {
+          player.money += t.money;
+          addFloatText(e.x, e.y - e.ch, '+' + t.money, '#ffd23f');
+        } else {
+          addFloatText(
+            e.x,
+            e.y - e.ch,
+            t.food.poison ? '毒!' : '-' + t.dmg,
+            t.food.poison ? '#4ade80' : '#ffd23f',
+          );
+        }
+        hit = true;
+        break;
+      }
+    }
+    if (hit) {
+      thrownFood.splice(i, 1);
+      continue;
+    }
+    /* 超时/出界: 玩家投掷的外卖落地可重新拾取; 西瓜直接消失 */
+    if (t.life >= THROW_LIFE || t.y < -60 || t.y > H + 60 || t.x < ROAD.left - 60 || t.x > W + 60) {
+      if (!t.melon) {
+        pickups.push({
+          x: clamp(t.x, ROAD.left + 44, ROAD.left + ROAD.width - 44),
+          y: clamp(t.y, 60, H - 60),
+          vx: t.vx * 0.15,
+          vy: 0,
+          life: 0,
+          maxLife: 8,
+          food: t.food,
+        });
+      }
+      thrownFood.splice(i, 1);
+    }
+  }
+}
+
+/* 柔边高光: 特殊外卖金色, 有毒外卖绿色 */
+function drawFoodGlow(item, size) {
+  const rgb = item.special >= 0 ? '255,213,63' : '74,222,128';
+  const g = ctx.createRadialGradient(0, 0, size * 0.05, 0, 0, size * 0.8);
+  g.addColorStop(0, 'rgba(' + rgb + ',0.7)');
+  g.addColorStop(0.5, 'rgba(' + rgb + ',0.32)');
+  g.addColorStop(1, 'rgba(' + rgb + ',0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, size * 0.8, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/* 在原点居中绘制一个外卖项(普通/有毒/特殊各用各自贴图) */
+function drawFoodItem(item, size) {
+  if (item.special >= 0) {
+    if (!assets.specFood) return;
+    const img = IMG.specFood;
+    const fw = img.naturalWidth / 2; // 2列×2行
+    const fh = img.naturalHeight / 2;
+    const s = item.special;
+    ctx.drawImage(
+      img,
+      (s % 2) * fw + 2,
+      Math.floor(s / 2) * fh + 2,
+      fw - 4,
+      fh - 4,
+      -size / 2,
+      -size / 2,
+      size,
+      size,
+    );
+    return;
+  }
+  if (item.poison) {
+    if (!assets.poison) return;
+    const img = IMG.poison;
+    const fw = img.naturalWidth / 2; // 2列×1行
+    const fh = img.naturalHeight;
+    const pf = item.pf || 0;
+    ctx.drawImage(img, pf * fw + 2, 2, fw - 4, fh - 4, -size / 2, -size / 2, size, size);
+    return;
+  }
+  if (!assets.food) return;
+  const img = IMG.food;
+  const fw = img.naturalWidth / 2;
+  const fh = img.naturalHeight / 2;
+  const f = item.f;
+  ctx.drawImage(img, f[0] * fw + 2, f[1] * fh + 2, fw - 4, fh - 4, -size / 2, -size / 2, size, size);
 }
 
 /* ---- 外卖掉落绘制 ---- */
 function drawPickups() {
-  if (!assets.food) return;
-  const fw = IMG.food.naturalWidth / 3; // 3×3 图集
-  const fh = IMG.food.naturalHeight / 3;
+  if (!assets.food && !assets.poison) return;
   for (const f of pickups) {
     const t = f.life / f.maxLife;
     /* 最后 20% 时间闪烁消失 */
@@ -87,17 +304,22 @@ function drawPickups() {
     ctx.globalAlpha = alpha;
     ctx.translate(f.x, f.y + bob);
     const s = FOOD_SIZE;
-    ctx.drawImage(
-      IMG.food,
-      f.frame[0] * fw + 2,
-      f.frame[1] * fh + 2,
-      fw - 4,
-      fh - 4,
-      -s / 2,
-      -s / 2,
-      s,
-      s,
-    );
+    if (f.food.poison || f.food.special >= 0) drawFoodGlow(f.food, s);
+    drawFoodItem(f.food, s);
+    ctx.restore();
+  }
+}
+
+/* ---- 投掷中的外卖绘制 ---- */
+function drawThrownFood() {
+  if (!assets.food && !assets.poison) return;
+  for (const t of thrownFood) {
+    const s = FOOD_SIZE;
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    ctx.rotate(t.life * 12);
+    if (t.food.poison || t.food.special >= 0) drawFoodGlow(t.food, s);
+    drawFoodItem(t.food, s);
     ctx.restore();
   }
 }
