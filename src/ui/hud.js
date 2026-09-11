@@ -2,7 +2,7 @@
 
 /* 界面绘制: HUD(血量/外卖/速度/犯罪条)/虚拟摇杆/游戏结束界面 */
 
-/* global ctx, fillRR, rr, W, H, player, game, PX_PER_M, BASE_SPEED, IMG, assets, HEAL_AMT, WEAPONS, nearestCustomer, nextCustomerDist, input, JOY_RADIUS, clamp, VEHICLES, drawFoodItem, drawFoodGlow, oldestNonSpecialIndex, screenMsg, loadProgress, SFX, BRAVE_TIME, MELON_TIME, EAT_TIME, DASH_TIME, vehicleDef, boss */
+/* global ctx, fillRR, rr, W, H, player, game, PX_PER_M, BASE_SPEED, IMG, assets, HEAL_AMT, WEAPONS, nearestCustomer, nextCustomerDist, input, JOY_RADIUS, clamp, VEHICLES, drawFoodItem, drawFoodGlow, oldestNonSpecialIndex, screenMsg, loadProgress, SFX, BRAVE_TIME, MELON_TIME, EAT_TIME, DASH_TIME, vehicleDef, boss, Toy, rankState, isVehicleUnlocked, vehicleUnlockHint, AUTHOR_NAME, VIDEO_TITLE, GIFTS */
 
 /* 外卖按钮点击区域(右下角水泥路面, 方便手机拇指操作; drawHUD 绘制, input.js pointerdown 共用) */
 const foodBtn = { x: 322, y: H - 132, w: 146, h: 64 };
@@ -26,10 +26,50 @@ const BUFF_ROWS = [
 ];
 
 /* 开始按钮点击区域(主菜单, input.js pointerdown 共用) */
-const startBtn = { x: W / 2 - 80, y: H * 0.62, w: 160, h: 56 };
+const startBtn = { x: W / 2 - 100, y: H * 0.55, w: 200, h: 56 };
 
 /* "选择出行方式"按钮(主菜单, input.js pointerdown 共用) */
-const vehicleOpenBtn = { x: W / 2 - 110, y: H * 0.5, w: 220, h: 60 };
+const vehicleOpenBtn = { x: W / 2 - 110, y: H * 0.45, w: 220, h: 58 };
+
+/* 主菜单底部: 排行榜 (input.js pointerdown 共用) */
+const rankOpenBtn = { x: W / 2 - 64, y: H * 0.66, w: 128, h: 44 };
+/* 排行榜界面: 刷新按钮(input.js pointerdown 共用) */
+const rankRefreshBtn = { x: W - 110, y: 20, w: 90, h: 42 };
+
+/* 按钮按下反馈: pointerdown 标记, 绘制时短暂下沉+压暗(input.js 调用 markPress) */
+const uiPress = { btn: null, t: 0 };
+function markPress(btn) {
+  uiPress.btn = btn;
+  uiPress.t = performance.now();
+}
+function pressFlash(btn) {
+  return uiPress.btn === btn && performance.now() - uiPress.t < 150;
+}
+function pressShade(btn, r) {
+  if (pressFlash(btn)) fillRR(btn.x, btn.y + 3, btn.w, btn.h, r, 'rgba(0,0,0,0.22)');
+}
+/* 仅压暗(不位移), 用于 HUD 内的小按钮 */
+function pressDark(btn, r) {
+  if (pressFlash(btn)) fillRR(btn.x, btn.y, btn.w, btn.h, r, 'rgba(0,0,0,0.3)');
+}
+
+/* 主菜单: 礼物图标按钮(input.js pointerdown 共用) */
+const giftBtn = { x: W - 74, y: 26, w: 52, h: 52 };
+
+/* 礼物 / 互动奖励面板(input.js pointerdown 共用) */
+const GIFT_PANEL = { x: 14, y: 56, w: 452, h: 566 };
+const giftCloseBtn = { x: GIFT_PANEL.x + GIFT_PANEL.w - 50, y: GIFT_PANEL.y + 12, w: 36, h: 36 };
+const giftHomeBtn = { x: 32 + 84, y: GIFT_PANEL.y + 52 + 46, w: 96, h: 30 };
+const giftVideoBtn = { x: 32, y: GIFT_PANEL.y + 190, w: 190, h: 128 };
+const giftUnlockBtn = { x: 236, y: GIFT_PANEL.y + 52 + 4 * 74 + 28, w: 200, h: 34 };
+
+/* 模拟模式(?mock=1)下, 载具页底部切换互动状态(input.js pointerdown 共用) */
+const mockBtns = [
+  { key: 'liked', label: '点赞', x: 20, y: H - 54, w: 104, h: 40 },
+  { key: 'coin', label: '投币', x: 132, y: H - 54, w: 104, h: 40 },
+  { key: 'fav', label: '收藏', x: 244, y: H - 54, w: 104, h: 40 },
+  { key: 'following', label: '关注', x: 356, y: H - 54, w: 104, h: 40 },
+];
 
 /* 返回按钮(出行方式选择界面, input.js pointerdown 共用) */
 const vehicleBackBtn = { x: 20, y: 20, w: 88, h: 42 };
@@ -169,6 +209,8 @@ function drawMenu() {
   ctx.fillRect(0, 0, W, H);
   ctx.textAlign = 'center';
   if (game.menuScreen === 'vehicle') drawVehicleSelect();
+  else if (game.menuScreen === 'rank') drawRankScreen();
+  else if (game.menuScreen === 'gift') drawGiftPanel();
   else drawMenuMain();
 }
 
@@ -179,25 +221,47 @@ function drawMenuMain() {
   ctx.fillText('肥嘟嘟外卖模拟器', W / 2, H * 0.3);
   /* 载具按钮 */
   const b = vehicleOpenBtn;
-  fillRR(b.x, b.y, b.w, b.h, 14, '#c9a51c');
+  const by = pressFlash(b) ? 3 : 0;
+  fillRR(b.x, b.y + by, b.w, b.h, 14, '#c9a51c');
   ctx.strokeStyle = '#8a6d10';
   ctx.lineWidth = 1.5;
-  rr(b.x, b.y, b.w, b.h, 14);
+  rr(b.x, b.y + by, b.w, b.h, 14);
   ctx.stroke();
   ctx.fillStyle = '#5a4a00';
   ctx.font = "bold 18px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('载具', W / 2, b.y + 26);
+  ctx.fillText('载具', W / 2, b.y + by + 26);
   ctx.font = "13px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('当前: ' + VEHICLES[player.vehicle].label, W / 2, b.y + 48);
+  ctx.fillText('当前: ' + VEHICLES[player.vehicle].label, W / 2, b.y + by + 48);
+  pressShade(b, 14);
   /* 开始按钮 */
-  fillRR(startBtn.x, startBtn.y, startBtn.w, startBtn.h, 14, '#2b2b2b');
+  const sy = pressFlash(startBtn) ? 3 : 0;
+  fillRR(startBtn.x, startBtn.y + sy, startBtn.w, startBtn.h, 14, '#2b2b2b');
   ctx.fillStyle = '#ffd23f';
   ctx.font = "bold 26px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('开始', W / 2, startBtn.y + 38);
+  ctx.fillText('开始', W / 2, startBtn.y + sy + 38);
+  pressShade(startBtn, 14);
+  /* 底部: 排行榜 */
+  const it = { b: rankOpenBtn, label: '排行榜' };
+  const dy = pressFlash(it.b) ? 3 : 0;
+  fillRR(it.b.x, it.b.y + dy, it.b.w, it.b.h, 10, '#c9a51c');
+  ctx.strokeStyle = '#8a6d10';
+  ctx.lineWidth = 1.5;
+  rr(it.b.x, it.b.y + dy, it.b.w, it.b.h, 10);
+  ctx.stroke();
+  ctx.fillStyle = '#5a4a00';
+  ctx.font = "bold 15px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText(it.label, it.b.x + it.b.w / 2, it.b.y + dy + 28);
+  pressShade(it.b, 10);
+  /* 礼物图标按钮(右上) */
+  const gb = giftBtn;
+  const gdy = pressFlash(gb) ? 3 : 0;
+  fillRR(gb.x, gb.y + gdy, gb.w, gb.h, 12, '#2b2b2b');
+  drawGiftIcon(gb.x + gb.w / 2, gb.y + gdy + gb.h / 2, 13);
+  pressDark(gb, 12);
   /* 操作提示 */
   ctx.fillStyle = '#5a4a00';
   ctx.font = "12px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('电脑: 方向键/WASD · 手机: 下半屏滑动', W / 2, H * 0.85);
+  ctx.fillText('电脑: 方向键/WASD · 手机: 下半屏滑动', W / 2, H * 0.86);
 }
 
 /* 出行方式选择界面: 左侧卡片列表 + 右侧替身式属性面板 + 返回 */
@@ -210,10 +274,14 @@ function drawVehicleSelect() {
     const def = VEHICLES[type];
     const b = vehicleBtns[type];
     const sel = player.vehicle === type;
-    fillRR(b.x, b.y, b.w, b.h, 14, sel ? '#2b2b2b' : '#f0c93f');
-    ctx.strokeStyle = sel ? '#ffd23f' : '#c9a51c';
+    const unlocked = isVehicleUnlocked(type);
+    const dy = pressFlash(b) ? 3 : 0;
+    let bg = sel ? '#2b2b2b' : '#f0c93f';
+    if (!unlocked) bg = sel ? '#4a4433' : '#b8a76a';
+    fillRR(b.x, b.y + dy, b.w, b.h, 14, bg);
+    ctx.strokeStyle = !unlocked ? '#8a7f55' : sel ? '#ffd23f' : '#c9a51c';
     ctx.lineWidth = sel ? 3 : 1.5;
-    rr(b.x, b.y, b.w, b.h, 14);
+    rr(b.x, b.y + dy, b.w, b.h, 14);
     ctx.stroke();
     /* 贴图预览(多帧只画第一帧), 左侧 */
     const preview = IMG[def.img];
@@ -221,6 +289,8 @@ function drawVehicleSelect() {
       const ph = 62;
       const frameW = preview.naturalWidth / def.frames;
       const pw = (ph * frameW) / preview.naturalHeight;
+      ctx.save();
+      if (!unlocked) ctx.globalAlpha = 0.4;
       ctx.drawImage(
         preview,
         0,
@@ -228,18 +298,20 @@ function drawVehicleSelect() {
         frameW,
         preview.naturalHeight,
         b.x + 44 - pw / 2,
-        b.y + b.h / 2 - ph / 2,
+        b.y + dy + b.h / 2 - ph / 2,
         pw,
         ph,
       );
+      ctx.restore();
     }
     /* 文案 */
     ctx.textAlign = 'left';
-    ctx.fillStyle = sel ? '#ffd23f' : '#5a4a00';
+    ctx.fillStyle = !unlocked ? '#6a6250' : sel ? '#ffd23f' : '#5a4a00';
     ctx.font = "bold 20px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillText(def.label, b.x + 92, b.y + 40);
+    ctx.fillText(def.label, b.x + 92, b.y + dy + 40);
     ctx.font = "12px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillText(def.desc, b.x + 92, b.y + 64);
+    ctx.fillText(unlocked ? def.desc : '🔒 ' + vehicleUnlockHint(type), b.x + 92, b.y + dy + 64);
+    pressShade(b, 14);
     ctx.textAlign = 'center';
   }
   /* 右侧替身式属性面板(显示当前所选载具) */
@@ -251,10 +323,381 @@ function drawVehicleSelect() {
   drawStatPanel(372, 420, 66, selDef);
   /* 返回按钮 */
   const r = vehicleBackBtn;
-  fillRR(r.x, r.y, r.w, r.h, 10, '#2b2b2b');
+  const rdy = pressFlash(r) ? 3 : 0;
+  fillRR(r.x, r.y + rdy, r.w, r.h, 10, '#2b2b2b');
   ctx.fillStyle = '#ffd23f';
   ctx.font = "bold 16px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('← 返回', r.x + r.w / 2, r.y + 27);
+  ctx.fillText('← 返回', r.x + r.w / 2, r.y + rdy + 27);
+  pressShade(r, 10);
+  /* 模拟模式: 解锁开关 */
+  if (Toy.isMock()) {
+    ctx.fillStyle = '#5a4a00';
+    ctx.font = "12px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillText('模拟模式: 点击切换互动状态', W / 2, H - 62);
+    const st = window.__toyMock.state;
+    for (const mb of mockBtns) {
+      const on = st[mb.key];
+      const mdy = pressFlash(mb) ? 3 : 0;
+      fillRR(mb.x, mb.y + mdy, mb.w, mb.h, 8, on ? '#2b2b2b' : '#c9a51c');
+      ctx.fillStyle = on ? '#ffd23f' : '#5a4a00';
+      ctx.font = "bold 14px 'PingFang SC','Microsoft YaHei',sans-serif";
+      ctx.fillText(mb.label + (on ? ' ✓' : ''), mb.x + mb.w / 2, mb.y + mdy + 26);
+      pressShade(mb, 8);
+    }
+  }
+}
+
+/* ---- 礼物 / 互动奖励面板 ---- */
+/* 把贴图按比例塞进 box×box 方框内居中绘制 */
+function fitInto(img, cx, cy, box) {
+  if (!img || !img.naturalWidth) return;
+  const s = Math.min(box / img.naturalWidth, box / img.naturalHeight);
+  ctx.drawImage(img, cx - (img.naturalWidth * s) / 2, cy - (img.naturalHeight * s) / 2, img.naturalWidth * s, img.naturalHeight * s);
+}
+
+/* 中文按宽度换行 */
+function wrapCJK(text, maxW, font) {
+  ctx.font = font;
+  const lines = [];
+  let cur = '';
+  for (const ch of text) {
+    if (cur && ctx.measureText(cur + ch).width > maxW) {
+      lines.push(cur);
+      cur = ch;
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+/* 礼物盒图标 */
+function drawGiftIcon(cx, cy, s) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.fillStyle = '#f0872a';
+  ctx.fillRect(-s, -s * 0.55, s * 2, s * 1.25);
+  ctx.fillStyle = '#d96f18';
+  ctx.fillRect(-s, -s * 0.55, s * 2, s * 0.26);
+  ctx.fillStyle = '#ffd23f';
+  ctx.fillRect(-s * 0.18, -s * 0.55, s * 0.36, s * 1.25);
+  ctx.beginPath();
+  ctx.arc(-s * 0.4, -s * 0.72, s * 0.32, 0, Math.PI * 2);
+  ctx.arc(s * 0.4, -s * 0.72, s * 0.32, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/* 对勾 */
+function drawCheck(cx, cy, r, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - r * 0.7, cy);
+  ctx.lineTo(cx - r * 0.1, cy + r * 0.6);
+  ctx.lineTo(cx + r * 0.8, cy - r * 0.7);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+}
+
+function drawGiftPanel() {
+  ctx.fillStyle = '#e9e2cf';
+  ctx.fillRect(0, 0, W, H);
+  const P = GIFT_PANEL;
+  fillRR(P.x, P.y, P.w, P.h, 18, '#f7f3e8');
+  ctx.strokeStyle = '#e2dac6';
+  ctx.lineWidth = 2;
+  rr(P.x, P.y, P.w, P.h, 18);
+  ctx.stroke();
+  /* 关闭按钮 */
+  const cb = giftCloseBtn;
+  const cdy = pressFlash(cb) ? 2 : 0;
+  const ccx = cb.x + cb.w / 2;
+  const ccy = cb.y + cdy + cb.h / 2;
+  ctx.fillStyle = '#e8e2d2';
+  ctx.beginPath();
+  ctx.arc(ccx, ccy, cb.w / 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#8a8272';
+  ctx.lineWidth = 2;
+  const cr = cb.w / 2 - 11;
+  ctx.beginPath();
+  ctx.moveTo(ccx - cr, ccy - cr);
+  ctx.lineTo(ccx + cr, ccy + cr);
+  ctx.moveTo(ccx + cr, ccy - cr);
+  ctx.lineTo(ccx - cr, ccy + cr);
+  ctx.stroke();
+
+  const lx = 32;
+  const lw = 190;
+  const rx = 236;
+  const rw = 200;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#3a352a';
+  ctx.font = "bold 17px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('作者', lx, P.y + 40);
+  ctx.fillText('互动奖励', rx, P.y + 40);
+
+  /* 作者卡片 */
+  const acY = P.y + 52;
+  fillRR(lx, acY, lw, 92, 14, '#ffffff');
+  ctx.strokeStyle = '#efe7d4';
+  ctx.lineWidth = 1.5;
+  rr(lx, acY, lw, 92, 14);
+  ctx.stroke();
+  const avX = lx + 44;
+  const avY = acY + 46;
+  const avR = 28;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(avX, avY, avR, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = '#ffe0b0';
+  ctx.fillRect(avX - avR, avY - avR, avR * 2, avR * 2);
+  fitInto(IMG.cow, avX, avY, avR * 2.1);
+  ctx.restore();
+  ctx.strokeStyle = '#e6b878';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(avX, avY, avR, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#2b2b2b';
+  ctx.font = "bold 16px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.textAlign = 'left';
+  ctx.fillText(AUTHOR_NAME, lx + 84, acY + 34);
+  /* 访问主页 */
+  const hb = giftHomeBtn;
+  const hdy = pressFlash(hb) ? 2 : 0;
+  fillRR(hb.x, hb.y + hdy, hb.w, hb.h, 8, '#f0872a');
+  ctx.fillStyle = '#ffffff';
+  ctx.font = "bold 13px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.textAlign = 'center';
+  ctx.fillText('访问主页', hb.x + hb.w / 2, hb.y + hdy + 21);
+  pressDark(hb, 8);
+
+  /* 开发视频 */
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#3a352a';
+  ctx.font = "bold 17px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('开发视频', lx, P.y + 178);
+  const vb = giftVideoBtn;
+  const vdy = pressFlash(vb) ? 2 : 0;
+  fillRR(vb.x, vb.y + vdy, vb.w, vb.h, 12, '#2b2b2b');
+  ctx.save();
+  ctx.beginPath();
+  rr(vb.x, vb.y + vdy, vb.w, vb.h, 12);
+  ctx.clip();
+  const grd = ctx.createLinearGradient(vb.x, vb.y, vb.x + vb.w, vb.y + vb.h);
+  grd.addColorStop(0, '#3f7a4f');
+  grd.addColorStop(1, '#8fb84a');
+  ctx.fillStyle = grd;
+  ctx.fillRect(vb.x, vb.y + vdy, vb.w, vb.h);
+  fitInto(IMG.cow, vb.x + vb.w / 2, vb.y + vdy + vb.h / 2, vb.h * 0.95);
+  ctx.restore();
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath();
+  ctx.arc(vb.x + vb.w / 2, vb.y + vdy + vb.h / 2, 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(vb.x + vb.w / 2 - 7, vb.y + vdy + vb.h / 2 - 11);
+  ctx.lineTo(vb.x + vb.w / 2 - 7, vb.y + vdy + vb.h / 2 + 11);
+  ctx.lineTo(vb.x + vb.w / 2 + 11, vb.y + vdy + vb.h / 2);
+  ctx.closePath();
+  ctx.fill();
+  pressDark(vb, 12);
+  ctx.fillStyle = '#5a5346';
+  const titleFont = "12px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.font = titleFont;
+  wrapCJK(VIDEO_TITLE, lw, titleFont).forEach((line, i) =>
+    ctx.fillText(line, lx, vb.y + vb.h + 26 + i * 18),
+  );
+
+  /* 互动奖励列表 */
+  const rowY0 = P.y + 52;
+  const rowH = 66;
+  const gap = 8;
+  GIFTS.forEach((g, i) => {
+    const ry = rowY0 + i * (rowH + gap);
+    const unlocked = isVehicleUnlocked(g.vtype);
+    fillRR(rx, ry, rw, rowH, 12, unlocked ? '#fdeede' : '#efeadc');
+    ctx.strokeStyle = unlocked ? '#f0872a' : '#ded7c5';
+    ctx.lineWidth = unlocked ? 2 : 1.5;
+    rr(rx, ry, rw, rowH, 12);
+    ctx.stroke();
+    const icX = rx + 34;
+    const icY = ry + rowH / 2;
+    const icR = 22;
+    if (unlocked) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(icX, icY, icR, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(icX - icR, icY - icR, icR * 2, icR * 2);
+      fitInto(IMG[VEHICLES[g.vtype].img], icX, icY, icR * 1.9);
+      ctx.restore();
+      ctx.strokeStyle = '#f0c9a0';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(icX, icY, icR, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      fillRR(icX - icR, icY - icR, icR * 2, icR * 2, icR, '#e2dccb');
+      ctx.fillStyle = '#a89e86';
+      ctx.font = "bold 20px 'PingFang SC','Microsoft YaHei',sans-serif";
+      ctx.textAlign = 'center';
+      ctx.fillText('?', icX, icY + 7);
+    }
+    ctx.textAlign = 'left';
+    ctx.fillStyle = unlocked ? '#2b2b2b' : '#9a9280';
+    ctx.font = "bold 16px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.fillText(unlocked ? VEHICLES[g.vtype].label : '???', rx + 68, ry + 27);
+    ctx.fillStyle = unlocked ? '#8a8272' : '#b0a894';
+    ctx.font = "12px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.fillText(
+      unlocked ? '初始生命 ' + VEHICLES[g.vtype].maxHp : '初始生命 ???',
+      rx + 68,
+      ry + 47,
+    );
+    if (unlocked) {
+      drawCheck(rx + rw - 24, ry + rowH / 2, 11, '#f0872a');
+    } else {
+      ctx.fillStyle = '#c3bba6';
+      ctx.font = "14px 'PingFang SC','Microsoft YaHei',sans-serif";
+      ctx.textAlign = 'center';
+      ctx.fillText('🔒', rx + rw - 24, ry + rowH / 2 + 5);
+    }
+  });
+
+  /* 提示 + 解锁按钮 */
+  const hintFont = "11px 'PingFang SC','Microsoft YaHei',sans-serif";
+  const hintY = rowY0 + GIFTS.length * (rowH + gap) + 2;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#9a9280';
+  wrapCJK('为开发视频点赞、投币并收藏后解锁', rw, hintFont).forEach((line, i) =>
+    ctx.fillText(line, rx, hintY + 12 + i * 15),
+  );
+  const allUnlocked = GIFTS.every((g) => isVehicleUnlocked(g.vtype));
+  const ub = giftUnlockBtn;
+  const udy = pressFlash(ub) ? 2 : 0;
+  fillRR(ub.x, ub.y + udy, ub.w, ub.h, 8, allUnlocked ? '#f0872a' : '#e2dccb');
+  ctx.fillStyle = allUnlocked ? '#ffffff' : '#a89e86';
+  ctx.font = "bold 14px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.textAlign = 'center';
+  ctx.fillText(allUnlocked ? '已全部解锁' : '尚未满足解锁条件', ub.x + ub.w / 2, ub.y + udy + 22);
+  pressDark(ub, 8);
+
+  /* 奖励已解锁(绿卡) */
+  const gcY = ub.y + ub.h + 16;
+  fillRR(rx, gcY, rw, 110, 12, allUnlocked ? '#eaf6e6' : '#efece1');
+  ctx.strokeStyle = allUnlocked ? '#b6e0a8' : '#ded7c5';
+  ctx.lineWidth = 2;
+  rr(rx, gcY, rw, 110, 12);
+  ctx.stroke();
+  drawGiftIcon(rx + 34, gcY + 42, 17);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = allUnlocked ? '#2f7d2a' : '#9a9280';
+  ctx.font = "bold 16px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText(allUnlocked ? '奖励已解锁' : '全部解锁可得', rx + 68, gcY + 36);
+  const chips = ['外卖 +1', '护盾 +1'];
+  chips.forEach((c, i) => {
+    const cw = 82;
+    const cxx = rx + 14 + i * (cw + 8);
+    fillRR(cxx, gcY + 52, cw, 26, 6, allUnlocked ? '#d9efce' : '#e6e2d6');
+    ctx.fillStyle = allUnlocked ? '#2f7d2a' : '#9a9280';
+    ctx.font = "12px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillText(c, cxx + cw / 2, gcY + 69);
+  });
+  ctx.textAlign = 'left';
+  ctx.fillStyle = allUnlocked ? '#5a8f4a' : '#a89e86';
+  ctx.font = "11px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('每周开局发放', rx + 14, gcY + 96);
+}
+
+/* ---- 排行榜(里程) ---- */
+function loadRank() {
+  rankState.loading = true;
+  rankState.error = '';
+  Promise.all([Toy.getRankList(50), Toy.getMyRank()])
+    .then((res) => {
+      const list = res[0];
+      rankState.loading = false;
+      rankState.list = list || [];
+      rankState.my = res[1];
+      if (!list || !list.length) rankState.error = '暂无数据（需在B站内打开）';
+    })
+    .catch(() => {
+      rankState.loading = false;
+      rankState.list = [];
+      rankState.error = '加载失败';
+    });
+}
+
+function drawRankScreen() {
+  ctx.fillStyle = '#2b2b2b';
+  ctx.font = "bold 26px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.textAlign = 'center';
+  ctx.fillText('里程排行榜', W / 2, H * 0.13);
+  const x = 40;
+  const y0 = 150;
+  const rowH = 46;
+  if (rankState.loading) {
+    ctx.fillStyle = '#5a4a00';
+    ctx.font = "15px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.fillText('加载中…', W / 2, y0 + 40);
+  } else if (rankState.error) {
+    ctx.fillStyle = '#8a4a00';
+    ctx.font = "15px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.fillText(rankState.error, W / 2, y0 + 40);
+  } else {
+    const n = Math.min(rankState.list.length, 11);
+    for (let i = 0; i < n; i++) {
+      const it = rankState.list[i];
+      const ry = y0 + i * rowH;
+      fillRR(x, ry, W - 2 * x, rowH - 8, 8, '#f0c93f');
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#5a4a00';
+      ctx.font = "bold 16px 'PingFang SC','Microsoft YaHei',sans-serif";
+      ctx.fillText('#' + it.rank, x + 12, ry + 26);
+      ctx.fillText(it.nickname || '玩家', x + 62, ry + 26);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#2b2b2b';
+      ctx.fillText((it.score || 0) + ' m', x + (W - 2 * x) - 12, ry + 26);
+      ctx.textAlign = 'center';
+    }
+  }
+  if (rankState.my) {
+    const m = rankState.my;
+    ctx.fillStyle = '#5a4a00';
+    ctx.font = "14px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.fillText(
+      m.ranked ? '我的排名 #' + m.rank + '  ' + m.score + ' m' : '我还没上榜',
+      W / 2,
+      H - 66,
+    );
+  }
+  /* 刷新按钮 */
+  const rb = rankRefreshBtn;
+  const rbdy = pressFlash(rb) ? 3 : 0;
+  fillRR(rb.x, rb.y + rbdy, rb.w, rb.h, 10, '#2b2b2b');
+  ctx.fillStyle = '#ffd23f';
+  ctx.font = "bold 15px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.textAlign = 'center';
+  ctx.fillText('刷新', rb.x + rb.w / 2, rb.y + rbdy + 27);
+  pressShade(rb, 10);
+  /* 返回按钮 */
+  const r = vehicleBackBtn;
+  const rdy = pressFlash(r) ? 3 : 0;
+  fillRR(r.x, r.y + rdy, r.w, r.h, 10, '#2b2b2b');
+  ctx.fillStyle = '#ffd23f';
+  ctx.font = "bold 16px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('← 返回', r.x + r.w / 2, r.y + rdy + 27);
+  pressShade(r, 10);
 }
 
 /* ---- 虚拟摇杆(仅手机滑动时显示) ---- */
@@ -284,6 +727,14 @@ function drawJoy() {
 
 /* ---- HUD: 左上血量(红)+外卖按钮, 右上速度+里程 ---- */
 function drawHUD() {
+  /* 测试模式提示(连续输入作弊码 hsgg 开关) */
+  if (game.testMode) {
+    fillRR(12, 116, 96, 22, 6, 'rgba(255,210,63,0.85)');
+    ctx.fillStyle = '#2b2b2b';
+    ctx.font = "bold 12px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.textAlign = 'left';
+    ctx.fillText('测试模式 ON', 20, 132);
+  }
   /* 左上: 玩家血量(红色) + 外卖数量 + 金钱 */
   fillRR(12, 12, 204, 96, 12, 'rgba(10,12,15,0.55)');
   fillRR(24, 26, 180, 14, 7, 'rgba(255,255,255,0.12)');
@@ -368,6 +819,7 @@ function drawHUD() {
     ctx.fillRect(pauseBtn.x + 12, pauseBtn.y + 10, 4, 14);
     ctx.fillRect(pauseBtn.x + 19, pauseBtn.y + 10, 4, 14);
   }
+  pressDark(pauseBtn, 8);
   fillRR(soundBtn.x, soundBtn.y, soundBtn.w, soundBtn.h, 8, 'rgba(10,12,15,0.55)');
   const vol = SFX.getVolume();
   ctx.fillStyle = vol <= 0 ? '#8a929c' : '#e6e9ed';
@@ -377,6 +829,7 @@ function drawHUD() {
   ctx.fillStyle = '#9aa3ad';
   ctx.font = "9px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.fillText(Math.round(vol * 100) + '%', soundBtn.x + soundBtn.w / 2, soundBtn.y + 31);
+  pressDark(soundBtn, 8);
   ctx.textAlign = 'left';
 
   /* 右上: 当前速度 + 已行驶里程 */
@@ -437,6 +890,7 @@ function drawHUD() {
     foodBtn.x + 62,
     foodBtn.y + 50,
   );
+  pressDark(foodBtn, 14);
 
   /* 投掷按钮(消耗最下方非特殊外卖, 自动锁定敌人) */
   const throwIdx = oldestNonSpecialIndex();
@@ -468,6 +922,7 @@ function drawHUD() {
   ctx.fillStyle = canThrow ? '#c7cdd4' : '#6a727c';
   ctx.font = "11px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.fillText('锁定敌人', throwBtn.x + 62, throwBtn.y + 44);
+  pressDark(throwBtn, 14);
 
   /* 装备状态(外卖按钮上方, 可同时显示多种道具) */
   const heldTypes = ['dagger', 'pistol', 'rifle', 'shield'].filter((t) => player.weapons[t]);
@@ -577,14 +1032,17 @@ function drawPause() {
   ctx.fillText('点击暂停按钮 / 按 Esc 继续', W / 2, H * 0.44 + 34);
   ctx.fillText('音量 ' + Math.round(SFX.getVolume() * 100) + '%（点右上角喇叭切换）', W / 2, H * 0.44 + 58);
   /* 返回开始界面按钮 */
-  fillRR(pauseHomeBtn.x, pauseHomeBtn.y, pauseHomeBtn.w, pauseHomeBtn.h, 12, '#2b2b2b');
+  const ph = pauseHomeBtn;
+  const phdy = pressFlash(ph) ? 3 : 0;
+  fillRR(ph.x, ph.y + phdy, ph.w, ph.h, 12, '#2b2b2b');
   ctx.strokeStyle = '#ffd23f';
   ctx.lineWidth = 2;
-  rr(pauseHomeBtn.x, pauseHomeBtn.y, pauseHomeBtn.w, pauseHomeBtn.h, 12);
+  rr(ph.x, ph.y + phdy, ph.w, ph.h, 12);
   ctx.stroke();
   ctx.fillStyle = '#ffd23f';
   ctx.font = "bold 18px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('返回开始界面', W / 2, pauseHomeBtn.y + 33);
+  ctx.fillText('返回开始界面', W / 2, ph.y + phdy + 33);
+  pressShade(ph, 12);
 }
 
 /* ---- 游戏结束界面 ---- */

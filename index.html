@@ -47,12 +47,14 @@
   </head>
   <body>
     <canvas id="game"></canvas>
+    <!-- B站 Toy JS SDK 由 src/core/toy.js 异步动态加载, 避免阻塞页面 -->
     <!-- 经典 script 按依赖顺序加载(共享全局作用域), 保持 file:// 双击可玩 -->
     <script src="src/core/utils.js"></script>
     <script src="src/core/config.js"></script>
     <script src="src/core/state.js"></script>
     <script src="src/core/canvas.js"></script>
     <script src="src/core/audio.js"></script>
+    <script src="src/core/toy.js"></script>
     <script src="src/core/assets.js"></script>
     <script src="src/core/input.js"></script>
     <script src="src/fx/smoke.js"></script>
@@ -64,6 +66,7 @@
     <script src="src/entities/customer.js"></script>
     <script src="src/entities/shop.js"></script>
     <script src="src/systems/zone.js"></script>
+    <script src="src/systems/unlock.js"></script>
     <script src="src/systems/collision.js"></script>
     <script src="src/systems/weapons.js"></script>
     <script src="src/entities/police.js"></script>

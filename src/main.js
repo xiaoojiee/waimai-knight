@@ -22,7 +22,7 @@
 
 /* 主循环: update/render + 道路贴图滚动 */
 
-/* global game, player, input, BASE_SPEED, SPEED_MIN, clamp, BOUNDS, vehicleDef, pace, updateSmoke, updateSmokeParticles, updateEnemies, updateEnemyBullets, collide, updateWeapon, updateBoom, updatePickups, updateThrownFood, updateCustomer, updateShop, updateRestaurant, updateZone, updateCrime, updatePolice, updateSpike, updateBoss, spawnSmokeAt, spawnWalkDust, updateDust, updateFloatTexts, updateFoodLag, ctx, dpr, W, H, LOOP, JOY_RADIUS, drawZone, drawSpike, drawSmoke, drawDust, drawCustomer, drawShop, drawRestaurant, drawEnemies, drawEnemyBullets, drawPolice, drawBoss, drawPickups, drawThrownFood, drawBullets, drawOrbitWeapons, drawPlayer, drawWeapon, drawBoom, drawJoy, drawHUD, drawFloatTexts, drawGameOver, drawMenu, drawScreenMsg, drawPause, drawLoading, ready, assets, IMG, TILE_H, GROUND_SCROLL_MUL, screenMsg, checkReady, SFX, nearestThrowTarget, throwMelon, BRAVE_SPEED_MUL, MELON_CD, DASH_SPEED_MUL, TRAIN_DRAIN_BASE, TRAIN_DRAIN_SPEED_REF, TRAIN_DRAIN_TIME_RATE, gameOver */
+/* global game, player, input, BASE_SPEED, SPEED_MIN, clamp, BOUNDS, vehicleDef, pace, updateSmoke, updateSmokeParticles, updateEnemies, updateEnemyBullets, collide, updateWeapon, updateBoom, updatePickups, updateThrownFood, updateAutoHeal, updateCustomer, updateShop, updateRestaurant, updateZone, updateCrime, updatePolice, updateSpike, updateBoss, spawnSmokeAt, spawnWalkDust, updateDust, updateFloatTexts, updateFoodLag, ctx, dpr, W, H, LOOP, JOY_RADIUS, drawZone, drawSpike, drawSmoke, drawDust, drawCustomer, drawShop, drawRestaurant, drawEnemies, drawEnemyBullets, drawPolice, drawBoss, drawPickups, drawThrownFood, drawBullets, drawOrbitWeapons, drawPlayer, drawWeapon, drawBoom, drawJoy, drawHUD, drawFloatTexts, drawGameOver, drawMenu, drawScreenMsg, drawPause, drawLoading, ready, assets, IMG, TILE_H, GROUND_SCROLL_MUL, screenMsg, checkReady, SFX, nearestThrowTarget, throwMelon, BRAVE_SPEED_MUL, MELON_CD, DASH_SPEED_MUL, TRAIN_DRAIN_BASE, TRAIN_DRAIN_SPEED_REF, TRAIN_DRAIN_TIME_RATE, gameOver */
 
 let footT = 0; // 脚步音计时
 
@@ -201,6 +201,7 @@ function update(dt) {
   updateBoom(dt);
   updatePickups(dt);
   updateThrownFood(dt);
+  updateAutoHeal(dt);
   /* 0-1「水果摊」: 见到敌人自动丢西瓜 */
   if (player.buff.melon > 0) {
     player.melonCd -= dt;

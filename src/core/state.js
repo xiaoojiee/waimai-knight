@@ -15,7 +15,8 @@ const game = {
   overReason: '', // 结束原因: hp(受伤) / bankrupt(破产)
   shake: 0, // 受击屏幕震动计时
   paused: false, // 是否暂停
-  menuScreen: 'main', // 开始界面层级: 'main' 主菜单 | 'vehicle' 出行方式选择
+  menuScreen: 'main', // 开始界面层级: main 主菜单 | vehicle 载具选择 | rank 排行榜 | gift 互动奖励
+  testMode: false, // 测试模式: 连续输入作弊码 hsgg 开关, 开启后测试按键才生效
 };
 
 const player = {
@@ -54,6 +55,11 @@ const input = {
   keys: Object.create(null),
   joy: null, // 手机虚拟摇杆 { id, ox, oy, dx, dy }
 };
+
+/* 载具解锁状态(由 B站 Toy 点赞/投币/收藏/关注解锁) */
+const unlocks = { rider: false, cow: false, car: false, train: false };
+/* 排行榜状态 */
+const rankState = { loading: false, list: null, my: null, error: '' };
 
 /* 屏幕中央大字提示(特殊客户台词) */
 const screenMsg = { text: '', life: 0, maxLife: 2.4 };

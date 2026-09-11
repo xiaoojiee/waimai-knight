@@ -2,7 +2,7 @@
 
 /* 输入: 键盘(WASD/方向键)+ 手机虚拟摇杆 + 外卖按钮点击 */
 
-/* global canvas, input, W, H, game, foodBtn, startBtn, vehicleBtns, vehicleOpenBtn, vehicleBackBtn, useFood, resetGame, adjustCrime, grantWeapon, player, addFloatText, PX_PER_M, makeFood, makeSpecialFood, applySpecialEffect, VEHICLES, applyVehicle, throwBtn, throwFood, ready, SFX, pauseBtn, soundBtn, pauseHomeBtn, spawnInitialEnemies, INITIAL_ENEMIES, spawnBoss */
+/* global canvas, input, W, H, game, foodBtn, startBtn, vehicleBtns, vehicleOpenBtn, vehicleBackBtn, useFood, resetGame, adjustCrime, grantWeapon, player, addFloatText, PX_PER_M, makeFood, makeSpecialFood, applySpecialEffect, VEHICLES, applyVehicle, throwBtn, throwFood, ready, SFX, pauseBtn, soundBtn, pauseHomeBtn, spawnInitialEnemies, INITIAL_ENEMIES, spawnBoss, rankOpenBtn, rankRefreshBtn, mockBtns, markPress, Toy, refreshUnlocks, isVehicleUnlocked, loadRank, giftBtn, giftCloseBtn, giftHomeBtn, giftVideoBtn, giftUnlockBtn */
 
 const KEYMAP = {
   ArrowLeft: 'left',
@@ -15,9 +15,27 @@ const KEYMAP = {
   KeyS: 'down',
 };
 
+/* 测试模式作弊码: 连续输入 hsgg 开关(类似 GTA 作弊码) */
+const CHEAT = 'hsgg';
+let cheatBuf = '';
+
 window.addEventListener('keydown', (e) => {
   if (!ready) return; // 加载中屏蔽输入
   SFX.unlock(); // 用户交互, 解锁音频
+  /* 作弊码: 连续输入 hsgg 开关「测试模式」 */
+  if (/^Key[A-Z]$/.test(e.code)) {
+    cheatBuf = (cheatBuf + e.code.slice(3).toLowerCase()).slice(-CHEAT.length);
+    if (cheatBuf === CHEAT) {
+      cheatBuf = '';
+      game.testMode = !game.testMode;
+      addFloatText(
+        player.x,
+        player.y - player.height / 2,
+        game.testMode ? '测试模式 开启' : '测试模式 关闭',
+        '#ffd23f',
+      );
+    }
+  }
   /* Esc: 暂停/继续 */
   if (e.code === 'Escape' && game.started && !game.over) {
     e.preventDefault();
@@ -26,6 +44,7 @@ window.addEventListener('keydown', (e) => {
   }
   const k = KEYMAP[e.code];
   if (!k) {
+    if (!game.testMode) return; // 未开启测试模式(作弊码 hsgg)时屏蔽所有测试键
     /* ---- 测试快捷键 ---- */
     /* +/- 调整犯罪等级 */
     if (e.code === 'Equal' || e.code === 'NumpadAdd') {
@@ -134,26 +153,84 @@ canvas.addEventListener('pointerdown', (e) => {
   if (!game.started) {
     const p = toLogical(e);
     const hit = (b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
+    if (game.menuScreen === 'gift') {
+      /* 礼物 / 互动奖励面板 */
+      if (hit(giftCloseBtn)) {
+        markPress(giftCloseBtn);
+        game.menuScreen = 'main';
+      } else if (hit(giftHomeBtn)) {
+        markPress(giftHomeBtn);
+        Toy.openAuthor();
+      } else if (hit(giftVideoBtn) || hit(giftUnlockBtn)) {
+        markPress(hit(giftVideoBtn) ? giftVideoBtn : giftUnlockBtn);
+        Toy.openVideo();
+      }
+      return;
+    }
+    if (game.menuScreen === 'rank') {
+      /* 排行榜界面 */
+      if (hit(vehicleBackBtn)) {
+        markPress(vehicleBackBtn);
+        game.menuScreen = 'main';
+      } else if (hit(rankRefreshBtn)) {
+        markPress(rankRefreshBtn);
+        loadRank();
+      }
+      return;
+    }
     if (game.menuScreen === 'vehicle') {
       /* 出行方式选择界面 */
       if (hit(vehicleBackBtn)) {
+        markPress(vehicleBackBtn);
         game.menuScreen = 'main';
         return;
       }
+      if (Toy.isMock()) {
+        for (const mb of mockBtns) {
+          if (hit(mb)) {
+            markPress(mb);
+            window.__toyMock.toggle(mb.key);
+            refreshUnlocks();
+            return;
+          }
+        }
+      }
       for (const type of Object.keys(VEHICLES)) {
         if (hit(vehicleBtns[type])) {
+          markPress(vehicleBtns[type]);
+          if (!isVehicleUnlocked(type)) {
+            /* 未解锁 → 跳到视频/UP 去点赞投币收藏关注 */
+            if (VEHICLES[type].unlock === 'follow') Toy.openAuthor();
+            else Toy.openVideo();
+            return;
+          }
           applyVehicle(type);
           return;
         }
       }
     } else {
       /* 主菜单 */
+      if (hit(giftBtn)) {
+        markPress(giftBtn);
+        game.menuScreen = 'gift';
+        refreshUnlocks(); // 刷新解锁状态
+        return;
+      }
       if (hit(vehicleOpenBtn)) {
+        markPress(vehicleOpenBtn);
         game.menuScreen = 'vehicle';
+        refreshUnlocks(); // 刷新解锁状态
+        return;
+      }
+      if (hit(rankOpenBtn)) {
+        markPress(rankOpenBtn);
+        game.menuScreen = 'rank';
+        loadRank();
         return;
       }
       /* 开始按钮: 应用当前载具(贴图可能刚加载完, 重新算尺寸) */
       if (hit(startBtn)) {
+        markPress(startBtn);
         game.started = true;
         applyVehicle(player.vehicle);
         spawnInitialEnemies(INITIAL_ENEMIES); // 开局一批敌人
@@ -171,10 +248,12 @@ canvas.addEventListener('pointerdown', (e) => {
   const hitBtn = (b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
   /* 暂停 / 音量 按钮 */
   if (hitBtn(pauseBtn)) {
+    markPress(pauseBtn);
     game.paused = !game.paused;
     return;
   }
   if (hitBtn(soundBtn)) {
+    markPress(soundBtn);
     const v = SFX.getVolume();
     SFX.setVolume(v > 0.75 ? 0.5 : v > 0.25 ? 0 : 1); // 100% → 50% → 0 → 100%
     return;
@@ -182,6 +261,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (game.paused) {
     /* 暂停界面: 仅「返回开始界面」可点 */
     if (hitBtn(pauseHomeBtn)) {
+      markPress(pauseHomeBtn);
       resetGame();
       game.started = false; // 退回开始界面
     }
@@ -189,11 +269,13 @@ canvas.addEventListener('pointerdown', (e) => {
   }
   /* 点击回血按钮 → 消耗 1 个外卖回血 */
   if (hitBtn(foodBtn)) {
+    markPress(foodBtn);
     useFood();
     return;
   }
   /* 点击投掷按钮 → 丢出外卖锁定敌人 */
   if (hitBtn(throwBtn)) {
+    markPress(throwBtn);
     throwFood();
     return;
   }

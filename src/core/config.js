@@ -36,6 +36,8 @@ const PACE_PER_KM = 0.15; // 每公里场景提速比例
 const PACE_MAX = 0.4; // 场景提速上限(+40%)
 const ENEMY_SCALE = 1.3; // 敌方骑手贴图放大倍数
 const HEAL_AMT = 25; // 点击外卖按钮回复的血量
+const AUTO_HEAL_THRESHOLD = 0.4; // 血量低于该比例时自动吃外卖
+const AUTO_HEAL_INTERVAL = 0.5; // 自动吃外卖间隔(秒)
 const RIDER_SCALE = 1.5; // 玩家贴图缩放倍数
 const FOOD_SIZE = 31; // 外卖掉落绘制尺寸
 const FOOD_STACK_PX = 23; // 背上堆叠外卖尺寸(px, 各载具统一)
@@ -179,6 +181,7 @@ const VEHICLES = {
   walk: {
     label: '步行',
     desc: '腿着跑',
+    unlock: 'free',
     img: 'walk',
     frames: 1,
     anim: 'bob', // 单图上下抖动模拟步行
@@ -203,6 +206,7 @@ const VEHICLES = {
   rider: {
     label: '小电驴',
     desc: '标准设备',
+    unlock: 'like',
     img: 'rider',
     frames: 1,
     anim: 'none',
@@ -223,6 +227,7 @@ const VEHICLES = {
   cow: {
     label: '牛来',
     desc: '牛来！！',
+    unlock: 'coin',
     img: 'cow',
     frames: 1,
     anim: 'none',
@@ -244,6 +249,7 @@ const VEHICLES = {
   car: {
     label: '跑车',
     desc: '提新车了',
+    unlock: 'fav',
     img: 'car',
     frames: 1,
     anim: 'none',
@@ -268,6 +274,7 @@ const VEHICLES = {
   train: {
     label: '火车头',
     desc: '心脏还有点问题',
+    unlock: 'follow',
     img: 'train',
     frames: 1,
     anim: 'none',
@@ -324,3 +331,14 @@ const BOSS_INTERVAL_MIN_M = 400; // 大运间隔下限(米)
 const BOSS_INTERVAL_MAX_M = 700; // 大运间隔上限(米)
 const BOSS_SPAWN_CHANCE = 0.6; // 到达阈值时的生成概率
 const BOSS_MONEY = 300; // 击败掉落金钱
+
+/* ===== 礼物 / 互动奖励面板 ===== */
+const AUTHOR_NAME = '火山哥哥'; // UP 主昵称(展示用)
+const VIDEO_TITLE = '我把「牛来」做成了游戏！点击即玩中国牛能飞！'; // 开发视频标题
+/* 每个互动动作解锁一个载具, 面板上用该载具的初始生命作为奖励描述 */
+const GIFTS = [
+  { action: '点赞', vtype: 'rider' },
+  { action: '投币', vtype: 'cow' },
+  { action: '收藏', vtype: 'car' },
+  { action: '关注', vtype: 'train' },
+];

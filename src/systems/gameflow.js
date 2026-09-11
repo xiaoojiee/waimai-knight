@@ -2,13 +2,15 @@
 
 /* 游戏流程: 结束与重新开始 */
 
-/* global game, player, W, H, BASE_SPEED, VEHICLES, enemies, boomParts, smokeParts, pickups, floatTexts, START_FOOD, CUSTOMER_DELAY_FIRST_M, PX_PER_M, SHOP_DELAY_FIRST_M, REST_DELAY_FIRST_M, ZONE_DELAY_FIRST_M, zoneSigns, police, bullets, slashFX, spawnBoom, spawnSmokeAt, makeFood, applyVehicle, thrownFood, roadFoodTimer:writable, screenMsg, SFX, customers, nextCustomerDist:writable, shops, nextShopDist:writable, restaurants, nextRestDist:writable, zone:writable, nextZoneDist:writable, crimeCool:writable, policeTimer:writable, spikeStrip:writable, spikeTimer:writable, enemyTimer:writable, boss:writable, nextBossDist:writable, BOSS_DELAY_FIRST_M */
+/* global game, player, W, H, BASE_SPEED, VEHICLES, enemies, boomParts, smokeParts, pickups, floatTexts, START_FOOD, CUSTOMER_DELAY_FIRST_M, PX_PER_M, SHOP_DELAY_FIRST_M, REST_DELAY_FIRST_M, ZONE_DELAY_FIRST_M, zoneSigns, police, bullets, slashFX, spawnBoom, spawnSmokeAt, makeFood, applyVehicle, thrownFood, roadFoodTimer:writable, screenMsg, SFX, Toy, customers, nextCustomerDist:writable, shops, nextShopDist:writable, restaurants, nextRestDist:writable, zone:writable, nextZoneDist:writable, crimeCool:writable, policeTimer:writable, spikeStrip:writable, spikeTimer:writable, enemyTimer:writable, boss:writable, nextBossDist:writable, BOSS_DELAY_FIRST_M */
 
 function gameOver() {
   if (!game.overReason) game.overReason = 'hp';
   game.over = true;
   game.shake = 0.6;
   SFX.play('death');
+  /* 上报里程到排行榜(榜位 1, 单位米) */
+  Toy.submitScore(Math.floor(game.totalDist / PX_PER_M));
   /* 玩家爆炸: 三连爆 + 烟雾 */
   for (let i = 0; i < 3; i++) {
     spawnBoom(player.x + (Math.random() - 0.5) * 40, player.y + (Math.random() - 0.5) * 40);

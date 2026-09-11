@@ -2,7 +2,7 @@
 
 /* 外卖: 掉落/拾取/回血/投掷(含毒外卖) */
 
-/* global assets, clamp, ROAD, player, game, addFloatText, gameOver, HEAL_AMT, IMG, ctx, FOOD_SIZE, H, W, makeFood, makeSpecialFood, difficulty, POISON_DROP_CHANCE, POISON_ROAD_CHANCE, POISON_HP, THROW_DMG, THROW_POISON_DMG, THROW_SPEED, THROW_RANGE, THROW_LIFE, SPECIAL_DROP_CHANCE, MELON_DMG, MELON_MONEY, DASH_TIME, vehicleDef, enemies, damageEnemy, spawnBoom, SFX, GROUND_SCROLL_MUL */
+/* global assets, clamp, ROAD, player, game, addFloatText, gameOver, HEAL_AMT, IMG, ctx, FOOD_SIZE, H, W, makeFood, makeSpecialFood, difficulty, POISON_DROP_CHANCE, POISON_ROAD_CHANCE, POISON_HP, THROW_DMG, THROW_POISON_DMG, THROW_SPEED, THROW_RANGE, THROW_LIFE, SPECIAL_DROP_CHANCE, MELON_DMG, MELON_MONEY, DASH_TIME, vehicleDef, enemies, damageEnemy, spawnBoom, SFX, GROUND_SCROLL_MUL, AUTO_HEAL_THRESHOLD, AUTO_HEAL_INTERVAL */
 
 const pickups = [];
 let roadFoodTimer = 3; // 路边外卖生成计时
@@ -102,6 +102,25 @@ function oldestNonSpecialIndex() {
     if (player.food[i].special < 0) return i;
   }
   return -1;
+}
+
+/* 血量低且下一个外卖无毒时, 自动食用(每 0.5s 一次) */
+let autoHealT = 0;
+function updateAutoHeal(dt) {
+  if (game.over || player.hp >= player.maxHp * AUTO_HEAL_THRESHOLD) {
+    autoHealT = 0;
+    return;
+  }
+  const i = oldestNonSpecialIndex();
+  if (i < 0 || player.food[i].poison) {
+    autoHealT = 0; // 没外卖 / 下一个有毒 → 不自动吃
+    return;
+  }
+  autoHealT -= dt;
+  if (autoHealT <= 0) {
+    useFood();
+    autoHealT = AUTO_HEAL_INTERVAL;
+  }
 }
 
 /* 点击外卖按钮: 消耗最下方(最早捡的)非特殊外卖; 有毒则扣血 */
