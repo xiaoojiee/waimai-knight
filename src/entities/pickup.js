@@ -2,7 +2,7 @@
 
 /* 外卖: 掉落/拾取/回血/投掷(含毒外卖) */
 
-/* global assets, clamp, ROAD, player, game, addFloatText, gameOver, HEAL_AMT, IMG, ctx, FOOD_SIZE, H, W, makeFood, makeSpecialFood, difficulty, POISON_DROP_CHANCE, POISON_ROAD_CHANCE, POISON_HP, THROW_DMG, THROW_POISON_DMG, THROW_SPEED, THROW_RANGE, THROW_LIFE, SPECIAL_DROP_CHANCE, MELON_DMG, MELON_MONEY, DASH_TIME, vehicleDef, enemies, damageEnemy, spawnBoom */
+/* global assets, clamp, ROAD, player, game, addFloatText, gameOver, HEAL_AMT, IMG, ctx, FOOD_SIZE, H, W, makeFood, makeSpecialFood, difficulty, POISON_DROP_CHANCE, POISON_ROAD_CHANCE, POISON_HP, THROW_DMG, THROW_POISON_DMG, THROW_SPEED, THROW_RANGE, THROW_LIFE, SPECIAL_DROP_CHANCE, MELON_DMG, MELON_MONEY, DASH_TIME, vehicleDef, enemies, damageEnemy, spawnBoom, SFX, GROUND_SCROLL_MUL */
 
 const pickups = [];
 let roadFoodTimer = 3; // 路边外卖生成计时
@@ -66,15 +66,29 @@ function updatePickups(dt) {
     const f = pickups[i];
     f.life += dt;
     f.x += f.vx * dt;
-    f.y += game.speed * 0.9 * dt + f.vy * dt; // 惯性滑行 + 随场景缓慢后移
+    f.y += game.speed * GROUND_SCROLL_MUL * 0.9 * dt + f.vy * dt; // 惯性滑行 + 随场景后移
     f.vx *= Math.max(0, 1 - dt * 2); // 横向摩擦
     f.vy *= Math.max(0, 1 - dt * 1.5); // 纵向摩擦: 向前滑一段后逐渐落后
+    /* 载具牵引: 范围内外卖被吸向玩家(越近越强) */
+    const pullR = vehicleDef().pullR || 0;
+    if (pullR > 0) {
+      const pdx = player.x - f.x;
+      const pdy = player.y - f.y;
+      const pd2 = pdx * pdx + pdy * pdy;
+      if (pd2 < pullR * pullR && pd2 > 1) {
+        const pd = Math.sqrt(pd2);
+        const force = (1 - pd / pullR) * 620;
+        f.x += (pdx / pd) * force * dt;
+        f.y += (pdy / pd) * force * dt;
+      }
+    }
     f.x = clamp(f.x, ROAD.left + 44, ROAD.left + ROAD.width - 44); // 始终留在路面内
     const dx = f.x - player.x;
     const dy = f.y - player.y;
     if (dx * dx + dy * dy < 55 * 55) {
       player.food.push(f.food); // 捡到的外卖叠到背上(新捡的在上方)
       addFloatText(f.x, f.y, '+1', f.food.poison ? '#4ade80' : '#ffd23f');
+      SFX.play('pickup');
       pickups.splice(i, 1);
       continue;
     }
@@ -102,11 +116,14 @@ function useFood() {
     player.hp = Math.max(0, player.hp - POISON_HP);
     player.flash = 0.4;
     addFloatText(player.x, player.y - player.height / 2, '-' + POISON_HP + ' 有毒!', '#ff6b6b');
+    SFX.play('poison');
     if (player.hp <= 0) gameOver();
   } else {
-    player.hp = Math.min(player.maxHp, player.hp + HEAL_AMT);
+    const heal = Math.round(HEAL_AMT * (vehicleDef().healMul || 1)); // 载具回血倍率
+    player.hp = Math.min(player.maxHp, player.hp + heal);
     player.healFlash = 0.4;
-    addFloatText(player.x, player.y - player.height / 2, '+' + HEAL_AMT, '#4ade80');
+    addFloatText(player.x, player.y - player.height / 2, '+' + heal, '#4ade80');
+    SFX.play('heal');
     /* 载具「牛」: 食用外卖后向前冲刺一段距离 */
     if (vehicleDef().dashOnEat) {
       player.buff.dash = DASH_TIME;
@@ -160,6 +177,7 @@ function throwFood() {
     item.poison ? '投掷 有毒!' : '投掷',
     item.poison ? '#4ade80' : '#ffd23f',
   );
+  SFX.play('throw');
 }
 
 /* 0-1 特殊效果: 自动丢出西瓜(对应特殊外卖帧 2), 命中造成伤害并得钱 */
@@ -177,6 +195,7 @@ function throwMelon(target) {
     money: MELON_MONEY,
     melon: true,
   });
+  SFX.voice('seed'); // 丢西瓜喊「生瓜蛋子」
 }
 
 function updateThrownFood(dt) {

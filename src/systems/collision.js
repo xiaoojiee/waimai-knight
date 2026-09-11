@@ -2,7 +2,7 @@
 
 /* 玩家与敌骑手碰撞检测 */
 
-/* global player, enemies, game, DMG_SIDE, DMG_FRONT, DMG_REAR, WEAPONS, slashFX, damagePlayer, damageEnemy, spawnBoom, consumeDagger, vehicleDef, contentSize, DASH_DEALT_MUL */
+/* global player, enemies, game, DMG_SIDE, DMG_FRONT, DMG_REAR, WEAPONS, slashFX, damagePlayer, damageEnemy, spawnBoom, consumeDagger, vehicleDef, contentSize, DASH_DEALT_MUL, SFX */
 
 function collide() {
   /* 用可见内容尺寸(剔除透明留白)作为碰撞盒 */
@@ -74,6 +74,7 @@ function collide() {
     const extraE = e.weapons.includes('dagger') ? WEAPONS.dagger.extraDmg : 0;
     damagePlayer(dmgP + extraE);
     damageEnemy(e, dmgE + extra, true); // true: 撞击伤害(触发「焖子」吃敌人效果)
+    if (player.buff.brave > 0) SFX.voice('weak'); // 我超勇的: 撞敌喊「弱欸」
     spawnBoom((player.x + e.x) / 2, (player.y + e.y) / 2);
     game.shake = 0.35;
     e.pass = true; // 本次接触只结算一次, 之后穿行滑过

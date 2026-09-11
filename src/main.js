@@ -22,20 +22,33 @@
 
 /* 主循环: update/render + 道路贴图滚动 */
 
-/* global game, player, input, BASE_SPEED, SPEED_MIN, clamp, BOUNDS, vehicleDef, updateSmoke, updateSmokeParticles, updateEnemies, updateEnemyBullets, collide, updateWeapon, updateBoom, updatePickups, updateThrownFood, updateCustomer, updateShop, updateRestaurant, updateZone, updateCrime, updatePolice, updateSpike, spawnSmokeAt, spawnWalkDust, updateDust, updateFloatTexts, updateFoodLag, ctx, dpr, W, H, LOOP, JOY_RADIUS, drawZone, drawSpike, drawSmoke, drawDust, drawCustomer, drawShop, drawRestaurant, drawEnemies, drawEnemyBullets, drawPolice, drawPickups, drawThrownFood, drawBullets, drawOrbitWeapons, drawPlayer, drawWeapon, drawBoom, drawJoy, drawHUD, drawFloatTexts, drawGameOver, drawMenu, drawScreenMsg, drawLoading, ready, assets, IMG, TILE_H, screenMsg, checkReady, nearestThrowTarget, throwMelon, BRAVE_SPEED_MUL, MELON_CD, DASH_SPEED_MUL, TRAIN_DRAIN_BASE, TRAIN_DRAIN_SPEED_REF, TRAIN_DRAIN_TIME_RATE, gameOver */
+/* global game, player, input, BASE_SPEED, SPEED_MIN, clamp, BOUNDS, vehicleDef, pace, updateSmoke, updateSmokeParticles, updateEnemies, updateEnemyBullets, collide, updateWeapon, updateBoom, updatePickups, updateThrownFood, updateCustomer, updateShop, updateRestaurant, updateZone, updateCrime, updatePolice, updateSpike, updateBoss, spawnSmokeAt, spawnWalkDust, updateDust, updateFloatTexts, updateFoodLag, ctx, dpr, W, H, LOOP, JOY_RADIUS, drawZone, drawSpike, drawSmoke, drawDust, drawCustomer, drawShop, drawRestaurant, drawEnemies, drawEnemyBullets, drawPolice, drawBoss, drawPickups, drawThrownFood, drawBullets, drawOrbitWeapons, drawPlayer, drawWeapon, drawBoom, drawJoy, drawHUD, drawFloatTexts, drawGameOver, drawMenu, drawScreenMsg, drawPause, drawLoading, ready, assets, IMG, TILE_H, GROUND_SCROLL_MUL, screenMsg, checkReady, SFX, nearestThrowTarget, throwMelon, BRAVE_SPEED_MUL, MELON_CD, DASH_SPEED_MUL, TRAIN_DRAIN_BASE, TRAIN_DRAIN_SPEED_REF, TRAIN_DRAIN_TIME_RATE, gameOver */
+
+let footT = 0; // 脚步音计时
 
 /* ==================== 更新 ==================== */
 function update(dt) {
+  /* 暂停: 冻结逻辑/动画/音频 */
+  if (game.paused && game.started && !game.over) {
+    SFX.drive(player.vehicle, game.speed, false);
+    SFX.bgm(player.vehicle, false);
+    return;
+  }
+
   game.time += dt;
   if (screenMsg.life > 0) screenMsg.life -= dt;
 
   if (!game.started) {
     /* 开始界面: 游戏完全暂停 */
+    SFX.drive(player.vehicle, game.speed, false);
+    SFX.bgm(player.vehicle, false);
     return;
   }
 
   if (game.over) {
     /* 游戏结束: 场景冻结, 只更新特效 */
+    SFX.drive(player.vehicle, game.speed, false);
+    SFX.bgm(player.vehicle, false);
     updateSmokeParticles(dt);
     updateBoom(dt);
     updateFloatTexts(dt);
@@ -44,6 +57,10 @@ function update(dt) {
     player.healFlash = Math.max(0, player.healFlash - dt);
     return;
   }
+
+  /* 载具行驶音(循环, 随速度变调) + 背景音乐 */
+  SFX.drive(player.vehicle, game.speed, true);
+  SFX.bgm(player.vehicle, true);
 
   /* 特殊效果计时衰减 */
   player.buff.brave = Math.max(0, player.buff.brave - dt);
@@ -65,7 +82,7 @@ function update(dt) {
   /* 冲刺: 「我超勇的」/ 牛的食用外卖冲刺 — 提升默认滚动速度(敌人自身速度不变) */
   const braveMul = player.buff.brave > 0 ? BRAVE_SPEED_MUL : 1;
   const dashMul = player.buff.dash > 0 ? DASH_SPEED_MUL : 1;
-  const spdMul = braveMul * dashMul;
+  const spdMul = braveMul * dashMul * pace(); // pace: 随里程整体提速
   const targetSpeed = clamp(
     (def.baseSpeed * spdMul - player.vy * brake) * slowMul + foodPenalty,
     effMin,
@@ -73,8 +90,10 @@ function update(dt) {
   );
   game.speed += (targetSpeed - game.speed) * Math.min(1, dt * 3);
 
-  /* 场景按当前速度向前滚动(无缝循环) */
-  game.distance = (game.distance + game.speed * dt) % LOOP;
+  /* 场景滚动: 视觉用 scrollSpeed(含加速), 逻辑里程用 game.speed */
+  const scrollSpeed = game.speed * GROUND_SCROLL_MUL;
+  game.distance = (game.distance + scrollSpeed * dt) % LOOP;
+  game.scrollDist += scrollSpeed * dt;
   game.totalDist += game.speed * dt;
 
   /* 火车头: 血量持续下降, 速度越快/时间越久扣得越多 */
@@ -158,6 +177,17 @@ function update(dt) {
     }
   }
 
+  /* 步行/牛来: 脚步音(每步一次) */
+  if ((player.vehicle === 'walk' || player.vehicle === 'cow') && moving) {
+    footT -= dt;
+    if (footT <= 0) {
+      SFX.step();
+      footT = 0.36;
+    }
+  } else {
+    footT = 0;
+  }
+
   /* 烟雾/扬尘: 粒子运动通用; 按载具类型发射 */
   updateSmokeParticles(dt);
   if (def.smoke === 'continuous') updateSmoke(dt);
@@ -189,6 +219,7 @@ function update(dt) {
   updateCrime(dt);
   updatePolice(dt);
   updateSpike(dt);
+  updateBoss(dt);
   /* 扎胎时车轮冒烟 */
   if (player.slowT > 0 && Math.random() < dt * 10) {
     spawnSmokeAt(
@@ -230,6 +261,7 @@ function render() {
   drawEnemies(); // 敌方骑手
   drawEnemyBullets(); // 敌方子弹
   drawPolice(); // 警车
+  drawBoss(); // 逆行大运(Boss)
   drawPickups(); // 外卖掉落
   drawThrownFood(); // 投掷中的外卖
   drawBullets(); // 子弹
@@ -252,6 +284,7 @@ function render() {
   }
   drawFloatTexts(); // 漂浮文字
   drawScreenMsg(); // 屏幕中央大字(特殊客户台词)
+  drawPause(); // 暂停界面
   drawGameOver(); // 结束界面
   drawMenu(); // 开始界面(未开始时盖在最上层)
 }
@@ -264,7 +297,7 @@ function drawRoadTexture() {
   const s = TILE_H / ih; // 贴图缩放到 TILE_H 高, 宽≈画布宽
   const tileW = iw * s;
   const x = (W - tileW) / 2;
-  const off = game.distance % TILE_H; // LOOP 是 TILE_H 整数倍, 无缝衔接
+  const off = game.distance % TILE_H; // 已含视觉加速(无缝循环)
   for (let y = -TILE_H + off; y < H; y += TILE_H) {
     ctx.drawImage(IMG.road, x, y, tileW, TILE_H);
   }

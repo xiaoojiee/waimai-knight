@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>音频压缩裁剪</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #12151a;
+        color: #d7dde5;
+        font: 13px/1.5 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        display: flex;
+        height: 100vh;
+      }
+      main {
+        flex: 1;
+        min-width: 0;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      canvas {
+        width: 100%;
+        flex: 1;
+        min-height: 0;
+        background: #1b2026;
+        border-radius: 8px;
+        cursor: crosshair;
+      }
+      aside {
+        width: 300px;
+        padding: 16px;
+        background: #161a20;
+        border-left: 1px solid #2a3038;
+        overflow: auto;
+      }
+      h1 {
+        font-size: 15px;
+        color: #ffd23f;
+        margin-bottom: 10px;
+      }
+      h2 {
+        font-size: 13px;
+        color: #9cdcfe;
+        margin: 14px 0 6px;
+      }
+      label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 7px 0;
+      }
+      label span {
+        width: 84px;
+        color: #8b949e;
+        flex-shrink: 0;
+      }
+      input[type='number'],
+      input[type='text'] {
+        width: 90px;
+        background: #0e1115;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 4px;
+        padding: 4px 6px;
+      }
+      select,
+      input[type='file'] {
+        background: #0e1115;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 4px;
+        padding: 4px 6px;
+      }
+      input[type='file'] {
+        width: 100%;
+      }
+      input[type='range'] {
+        flex: 1;
+      }
+      button {
+        background: #21262d;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 4px;
+        padding: 6px 12px;
+        cursor: pointer;
+      }
+      button.primary {
+        background: #3d2f00;
+        border-color: #ffd23f;
+        color: #ffd23f;
+        width: 100%;
+        margin-top: 10px;
+        font-weight: bold;
+      }
+      pre {
+        background: #0e1115;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 10px;
+        white-space: pre-wrap;
+        color: #9cdcfe;
+        margin-top: 8px;
+      }
+      .hint {
+        color: #8b949e;
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <canvas id="wave"></canvas>
+      <div class="row">
+        <button id="play">▶ 试听裁剪段</button>
+        <button id="stop">■ 停止</button>
+        <span id="pos" style="color: #8b949e">0.00s / 0.00s</span>
+      </div>
+    </main>
+    <aside>
+      <h1>音频压缩裁剪</h1>
+      <p class="hint">加载音频 → 拖波形上的两条竖线选择裁剪范围 → 压缩导出 MP3。</p>
+      <input id="file" type="file" accept="audio/*" />
+      <h2>裁剪范围</h2>
+      <label><span>起点 (s)</span><input id="start" type="number" step="0.01" value="0" /></label>
+      <label><span>终点 (s)</span><input id="end" type="number" step="0.01" value="0" /></label>
+      <h2>压缩设置</h2>
+      <label>
+        <span>码率</span>
+        <select id="kbps">
+          <option value="32">32 kbps</option>
+          <option value="48">48 kbps</option>
+          <option value="64" selected>64 kbps</option>
+          <option value="96">96 kbps</option>
+          <option value="128">128 kbps</option>
+          <option value="192">192 kbps</option>
+        </select>
+      </label>
+      <label><span>声道</span>
+        <select id="channels">
+          <option value="1" selected>单声道 (更小)</option>
+          <option value="2">立体声</option>
+        </select>
+      </label>
+      <label><span>音量</span><input id="gain" type="range" min="0" max="2" step="0.05" value="1" /></label>
+      <button class="primary" id="encode">压缩并导出 MP3</button>
+      <pre id="out">未加载音频</pre>
+    </aside>
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
+    <script>
+      const canvas = document.getElementById('wave');
+      const ctx = canvas.getContext('2d');
+      const els = {
+        file: document.getElementById('file'),
+        start: document.getElementById('start'),
+        end: document.getElementById('end'),
+        kbps: document.getElementById('kbps'),
+        channels: document.getElementById('channels'),
+        gain: document.getElementById('gain'),
+        encode: document.getElementById('encode'),
+        play: document.getElementById('play'),
+        stop: document.getElementById('stop'),
+        pos: document.getElementById('pos'),
+        out: document.getElementById('out'),
+      };
+
+      let audioCtx = null;
+      let buffer = null; // AudioBuffer
+      let peaks = null; // [min,max] per pixel
+      let startT = 0;
+      let endT = 0;
+      let src = null;
+      let playing = false;
+      let playStart = 0;
+      let playT0 = 0;
+      let drag = null; // 'start' | 'end'
+
+      function ac() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        return audioCtx;
+      }
+
+      function fmtTime(s) {
+        return s.toFixed(2) + 's';
+      }
+      function fmtSize(bytes) {
+        return bytes >= 1024 * 1024
+          ? (bytes / 1024 / 1024).toFixed(2) + ' MB'
+          : (bytes / 1024).toFixed(1) + ' KB';
+      }
+
+      function computePeaks() {
+        const W = Math.max(1, canvas.clientWidth);
+        const n = buffer.length;
+        const per = Math.max(1, Math.floor(n / W));
+        const ch = buffer.getChannelData(0);
+        peaks = [];
+        for (let x = 0; x < W; x++) {
+          const s = x * per;
+          let mn = 1,
+            mx = -1;
+          for (let i = 0; i < per && s + i < n; i += 4) {
+            const v = ch[s + i];
+            if (v < mn) mn = v;
+            if (v > mx) mx = v;
+          }
+          peaks.push([mn, mx]);
+        }
+      }
+
+      function draw() {
+        const dpr = devicePixelRatio || 1;
+        const W = canvas.clientWidth;
+        const H = canvas.clientHeight;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = '#1b2026';
+        ctx.fillRect(0, 0, W, H);
+        if (!buffer) {
+          ctx.fillStyle = '#8b949e';
+          ctx.textAlign = 'center';
+          ctx.fillText('加载音频后显示波形', W / 2, H / 2);
+          return;
+        }
+        const mid = H / 2;
+        /* 波形 */
+        ctx.fillStyle = '#3a7bd5';
+        for (let x = 0; x < peaks.length; x++) {
+          const [mn, mx] = peaks[x];
+          const y1 = mid - mx * mid * 0.95;
+          const y2 = mid - mn * mid * 0.95;
+          ctx.fillRect(x, y1, 1, Math.max(1, y2 - y1));
+        }
+        /* 裁剪区高亮 + 边界 */
+        const xs = (startT / buffer.duration) * W;
+        const xe = (endT / buffer.duration) * W;
+        ctx.fillStyle = 'rgba(255,210,63,0.10)';
+        ctx.fillRect(xs, 0, xe - xs, H);
+        ctx.fillStyle = 'rgba(255,210,63,0.6)';
+        ctx.fillRect(xs - 1, 0, 2, H);
+        ctx.fillRect(xe - 1, 0, 2, H);
+        /* 播放头 */
+        if (playing) {
+          const p = (playStart + (ac().currentTime - playT0)) / buffer.duration;
+          const xp = Math.min(1, Math.max(0, p)) * W;
+          ctx.fillStyle = '#4ade80';
+          ctx.fillRect(xp - 1, 0, 2, H);
+        }
+      }
+
+      function syncInputs() {
+        els.start.value = startT.toFixed(2);
+        els.end.value = endT.toFixed(2);
+        if (buffer) {
+          els.start.max = buffer.duration;
+          els.end.max = buffer.duration;
+        }
+      }
+
+      els.file.addEventListener('change', async (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (!f) return;
+        els.out.textContent = '正在解码 ' + f.name + ' …';
+        try {
+          const c = ac();
+          await c.resume(); // 用户手势内解锁音频上下文
+          const ab = await f.arrayBuffer();
+          buffer = await c.decodeAudioData(ab.slice(0));
+          startT = 0;
+          endT = buffer.duration;
+          window._origSize = f.size;
+          window._origName = f.name;
+          computePeaks();
+          syncInputs();
+          draw();
+          els.out.textContent =
+            '原文件: ' +
+            f.name +
+            '\n大小: ' +
+            fmtSize(f.size) +
+            '\n时长: ' +
+            fmtTime(buffer.duration) +
+            '\n采样率: ' +
+            buffer.sampleRate +
+            'Hz  声道: ' +
+            buffer.numberOfChannels;
+        } catch (err) {
+          buffer = null;
+          draw();
+          els.out.textContent =
+            '无法解码该文件: ' +
+            (err && err.message ? err.message : err) +
+            '\n可能浏览器不支持该编码(如某些 AAC/HE-AAC)。\n可先用其它工具转成 wav/mp3 再试。';
+        }
+      });
+
+      els.start.addEventListener('input', () => {
+        startT = Math.min(+els.start.value || 0, endT - 0.01);
+        syncInputs();
+        draw();
+      });
+      els.end.addEventListener('input', () => {
+        endT = Math.max(+els.end.value || 0, startT + 0.01);
+        syncInputs();
+        draw();
+      });
+
+      function posFromEvent(e) {
+        const r = canvas.getBoundingClientRect();
+        const x = Math.min(r.width, Math.max(0, e.clientX - r.left));
+        return (x / r.width) * buffer.duration;
+      }
+      canvas.addEventListener('pointerdown', (e) => {
+        if (!buffer) return;
+        const r = canvas.getBoundingClientRect();
+        const x = e.clientX - r.left;
+        const xs = (startT / buffer.duration) * r.width;
+        const xe = (endT / buffer.duration) * r.width;
+        if (Math.abs(x - xs) <= Math.abs(x - xe)) {
+          drag = 'start';
+          startT = Math.min(posFromEvent(e), endT - 0.01);
+        } else {
+          drag = 'end';
+          endT = Math.max(posFromEvent(e), startT + 0.01);
+        }
+        canvas.setPointerCapture(e.pointerId);
+        syncInputs();
+        draw();
+      });
+      canvas.addEventListener('pointermove', (e) => {
+        if (!buffer) return;
+        if (drag === 'start') startT = Math.min(posFromEvent(e), endT - 0.01);
+        else if (drag === 'end') endT = Math.max(posFromEvent(e), startT + 0.01);
+        else return;
+        syncInputs();
+        draw();
+      });
+      canvas.addEventListener('pointerup', () => (drag = null));
+
+      function stopPlay() {
+        if (src) {
+          try {
+            src.stop();
+          } catch (_) {}
+          src = null;
+        }
+        playing = false;
+        draw();
+      }
+      els.stop.addEventListener('click', stopPlay);
+      els.play.addEventListener('click', () => {
+        if (!buffer) return;
+        stopPlay();
+        src = ac().createBufferSource();
+        src.buffer = buffer;
+        src.connect(ac().destination);
+        playStart = startT;
+        playT0 = ac().currentTime;
+        playing = true;
+        src.start(0, startT, Math.max(0.01, endT - startT));
+        src.onended = () => {
+          playing = false;
+          draw();
+        };
+      });
+
+      function tick() {
+        if (playing && buffer) {
+          const t = playStart + (ac().currentTime - playT0);
+          els.pos.textContent = fmtTime(Math.min(t, endT)) + ' / ' + fmtTime(buffer.duration);
+          draw();
+        }
+        requestAnimationFrame(tick);
+      }
+      tick();
+
+      /* ---- 编码导出 ---- */
+      els.encode.addEventListener('click', () => {
+        if (!buffer) return;
+        if (typeof lamejs === 'undefined') {
+          els.out.textContent = '编码库加载失败(需要联网加载 lamejs), 请联网后重试。';
+          return;
+        }
+        const sr = buffer.sampleRate;
+        const chans = +els.channels.value;
+        const kbps = +els.kbps.value;
+        const gain = +els.gain.value || 1;
+        const s0 = Math.floor(startT * sr);
+        const s1 = Math.floor(endT * sr);
+        const len = Math.max(1, s1 - s0);
+        const left = buffer.getChannelData(0);
+        const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : left;
+        const enc = new lamejs.Mp3Encoder(chans, sr, kbps);
+        const block = 1152;
+        const data = [];
+        const l16 = new Int16Array(block);
+        const r16 = new Int16Array(block);
+        for (let i = 0; i < len; i += block) {
+          const n = Math.min(block, len - i);
+          for (let j = 0; j < n; j++) {
+            let a = left[s0 + i + j] * gain;
+            a = a < -1 ? -1 : a > 1 ? 1 : a;
+            l16[j] = a * 32767;
+            if (chans === 2) {
+              let b = right[s0 + i + j] * gain;
+              b = b < -1 ? -1 : b > 1 ? 1 : b;
+              r16[j] = b * 32767;
+            }
+          }
+          const buf =
+            chans === 2
+              ? enc.encodeBuffer(l16.subarray(0, n), r16.subarray(0, n))
+              : enc.encodeBuffer(l16.subarray(0, n));
+          if (buf.length) data.push(buf);
+        }
+        const tail = enc.flush();
+        if (tail.length) data.push(tail);
+        const blob = new Blob(data, { type: 'audio/mpeg' });
+        const name = (window._origName || 'audio').replace(/\.[^.]+$/, '') + `_${kbps}k.mp3`;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        const ratio = window._origSize ? Math.round((1 - blob.size / window._origSize) * 100) : 0;
+        els.out.textContent =
+          '已导出: ' +
+          name +
+          '\n压缩后: ' +
+          fmtSize(blob.size) +
+          (window._origSize ? '  (原 ' + fmtSize(window._origSize) + ', 省 ' + ratio + '%)' : '') +
+          '\n裁剪长度: ' +
+          fmtTime(endT - startT) +
+          '  码率: ' +
+          kbps +
+          'kbps  ' +
+          (chans === 2 ? '立体声' : '单声道');
+      });
+
+      window.addEventListener('resize', () => {
+        if (buffer) computePeaks();
+        draw();
+      });
+      draw();
+    </script>
+  </body>
+</html>

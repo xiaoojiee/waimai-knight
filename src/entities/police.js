@@ -2,7 +2,7 @@
 
 /* 犯罪等级 / 警车追击 / 拦车钉(路钉) */
 
-/* global player, clamp, ROAD, game, addFloatText, H, damagePlayer, spawnBoom, enemies, dropFood, WEAPONS, zoneScreenY, ctx, fillRR, IMG, assets, crimeCool:writable, launchEnemy, CRIME_MAX_LVL, contentSize, CRIME_OVER_RATE, BOUNDS */
+/* global player, clamp, ROAD, game, addFloatText, H, damagePlayer, spawnBoom, enemies, dropFood, WEAPONS, zoneScreenY, ctx, fillRR, IMG, assets, crimeCool:writable, launchEnemy, CRIME_MAX_LVL, contentSize, CRIME_OVER_RATE, BOUNDS, detectSpriteBox */
 
 /* 等级: 1 小罪无碍 / 2 略有影响 / 3 大型事故 / 4 重大影响(犯罪槽攒满逐级提升) */
 function crimeLevel() {
@@ -96,10 +96,10 @@ function updatePolice(dt) {
         p.cycleT = Math.max(0.15, (1.5 + Math.random() * 2.5) / crimeEscalation());
       }
     }
-    /* 轻微横向跟踪玩家(保持在本车道内) */
+    /* 横向跟踪玩家(较弱, 便于侧向躲开; 保持在本车道内) */
     const laneX0 = p.lane === 0 ? ROAD.left : ROAD.left + ROAD.width / 2;
     const laneX1 = laneX0 + ROAD.width / 2;
-    p.x += (clamp(player.x, laneX0 + 34, laneX1 - 34) - p.x) * Math.min(1, dt * 2);
+    p.x += (clamp(player.x, laneX0 + 34, laneX1 - 34) - p.x) * Math.min(1, dt * 0.7);
 
     /* 与玩家重叠: 每帧推出(避免卡住), 受击无敌外再结算伤害/弹开 */
     {
@@ -156,7 +156,7 @@ function updateSpike(dt) {
       spikeTimer -= dt;
       if (spikeTimer <= 0) {
         spikeStrip = {
-          world: game.totalDist + 1500, // 前方 75m
+          world: game.scrollDist + 1500, // 前方
           lane: Math.random() < 0.5 ? 0 : 1,
           hit: false,
         };
@@ -173,7 +173,6 @@ function updateSpike(dt) {
       ) {
         spikeStrip.hit = true;
         player.slowT = 4; // 整体速度下降 4 秒
-        addFloatText(player.x, player.y - player.height / 2, '扎胎! 减速', '#ff9d5c');
         game.shake = 0.3;
       }
       if (sy > H + 100) {
@@ -197,30 +196,18 @@ function drawPolice() {
     ctx.beginPath();
     ctx.ellipse(0, 6, 30, 50, 0, 0, Math.PI * 2);
     ctx.fill();
-    if (assets.police && POLICE_BOX) {
+    if (assets.police) {
+      if (!POLICE_BOX) POLICE_BOX = detectSpriteBox(IMG.police); // 懒重试
+      const box = POLICE_BOX || {
+        x: 0,
+        y: 0,
+        w: IMG.police.naturalWidth,
+        h: IMG.police.naturalHeight,
+      };
       /* 警车贴图(按内容包围盒裁切) */
       const h = 115;
-      const w = (h * POLICE_BOX.w) / POLICE_BOX.h;
-      ctx.drawImage(
-        IMG.police,
-        POLICE_BOX.x,
-        POLICE_BOX.y,
-        POLICE_BOX.w,
-        POLICE_BOX.h,
-        -w / 2,
-        -h / 2,
-        w,
-        h,
-      );
-    } else {
-      /* 回退: 矢量警车 */
-      fillRR(-29, -48, 58, 96, 10, '#f2f4f7');
-      fillRR(-23, -38, 46, 16, 4, '#39414a');
-      fillRR(-23, 22, 46, 16, 4, '#39414a');
-      fillRR(-29, -10, 58, 20, 4, '#2b5fd9');
-      const flash = Math.sin(game.time * 12 + p.weavePhase) > 0;
-      fillRR(-13, -56, 11, 9, 2, flash ? '#ff4444' : '#3366ff');
-      fillRR(2, -56, 11, 9, 2, flash ? '#3366ff' : '#ff4444');
+      const w = (h * box.w) / box.h;
+      ctx.drawImage(IMG.police, box.x, box.y, box.w, box.h, -w / 2, -h / 2, w, h);
     }
     ctx.restore();
   }
@@ -234,33 +221,13 @@ function drawSpike() {
   const x0 = spikeStrip.lane === 0 ? ROAD.left : ROAD.left + ROAD.width / 2;
   const w = ROAD.width / 2;
   ctx.save();
-  if (assets.spike && SPIKE_BOX) {
+  if (assets.spike) {
+    if (!SPIKE_BOX) SPIKE_BOX = detectSpriteBox(IMG.spike); // 懒重试
+    const box = SPIKE_BOX || { x: 0, y: 0, w: IMG.spike.naturalWidth, h: IMG.spike.naturalHeight };
     /* 路钉贴图(按内容包围盒裁切, 保持宽高比) */
     const drawW = w - 4;
-    const drawH = (drawW * SPIKE_BOX.h) / SPIKE_BOX.w;
-    ctx.drawImage(
-      IMG.spike,
-      SPIKE_BOX.x,
-      SPIKE_BOX.y,
-      SPIKE_BOX.w,
-      SPIKE_BOX.h,
-      x0 + 2,
-      sy - drawH / 2,
-      drawW,
-      drawH,
-    );
-  } else {
-    /* 回退: 矢量拦车钉 */
-    fillRR(x0 + 2, sy - 7, w - 4, 14, 3, '#22262b');
-    ctx.fillStyle = '#c9ced6';
-    for (let x = x0 + 10; x < x0 + w - 8; x += 16) {
-      ctx.beginPath();
-      ctx.moveTo(x, sy - 7);
-      ctx.lineTo(x + 5, sy - 16);
-      ctx.lineTo(x + 10, sy - 7);
-      ctx.closePath();
-      ctx.fill();
-    }
+    const drawH = (drawW * box.h) / box.w;
+    ctx.drawImage(IMG.spike, box.x, box.y, box.w, box.h, x0 + 2, sy - drawH / 2, drawW, drawH);
   }
   ctx.restore();
 }

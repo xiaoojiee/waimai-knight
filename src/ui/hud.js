@@ -2,13 +2,28 @@
 
 /* 界面绘制: HUD(血量/外卖/速度/犯罪条)/虚拟摇杆/游戏结束界面 */
 
-/* global ctx, fillRR, rr, W, H, player, game, PX_PER_M, BASE_SPEED, IMG, assets, HEAL_AMT, WEAPONS, customer, nextCustomerDist, input, JOY_RADIUS, clamp, VEHICLES, drawFoodItem, drawFoodGlow, oldestNonSpecialIndex, screenMsg, loadProgress */
+/* global ctx, fillRR, rr, W, H, player, game, PX_PER_M, BASE_SPEED, IMG, assets, HEAL_AMT, WEAPONS, nearestCustomer, nextCustomerDist, input, JOY_RADIUS, clamp, VEHICLES, drawFoodItem, drawFoodGlow, oldestNonSpecialIndex, screenMsg, loadProgress, SFX, BRAVE_TIME, MELON_TIME, EAT_TIME, DASH_TIME, vehicleDef, boss */
 
 /* 外卖按钮点击区域(右下角水泥路面, 方便手机拇指操作; drawHUD 绘制, input.js pointerdown 共用) */
 const foodBtn = { x: 322, y: H - 132, w: 146, h: 64 };
 
 /* 投掷外卖按钮(回血按钮下方; input.js pointerdown 共用) */
 const throwBtn = { x: 322, y: H - 62, w: 146, h: 54 };
+
+/* 暂停 / 音量 按钮(游戏内顶部中央; input.js pointerdown 共用) */
+const pauseBtn = { x: 220, y: 14, w: 34, h: 34 };
+const soundBtn = { x: 260, y: 14, w: 34, h: 34 };
+
+/* 暂停界面「返回开始界面」按钮(input.js pointerdown 共用) */
+const pauseHomeBtn = { x: W / 2 - 90, y: H * 0.44 + 84, w: 180, h: 52 };
+
+/* 特殊效果倒计时行 */
+const BUFF_ROWS = [
+  { key: 'brave', label: '我超勇的', color: '#ffd23f', max: BRAVE_TIME },
+  { key: 'melon', label: '水果摊', color: '#4ade80', max: MELON_TIME },
+  { key: 'eat', label: '焖子', color: '#ff9d5c', max: EAT_TIME },
+  { key: 'dash', label: '冲刺', color: '#4da3ff', max: DASH_TIME },
+];
 
 /* 开始按钮点击区域(主菜单, input.js pointerdown 共用) */
 const startBtn = { x: W / 2 - 80, y: H * 0.62, w: 160, h: 56 };
@@ -277,18 +292,28 @@ function drawHUD() {
   const pulse = ratio < 0.3 ? 0.6 + 0.4 * Math.sin(game.time * 8) : 1;
   fillRR(26, 28, Math.max(4, 176 * ratio), 10, 5, 'rgba(229,72,77,' + pulse + ')');
   ctx.textAlign = 'left';
-  /* 外卖 / 特殊外卖 数量 */
+  /* 外卖数量 + 特殊外卖图标(去重显示持有的种类与数量) */
   let normalN = 0;
-  let specialN = 0;
+  const specCounts = [0, 0, 0, 0];
   for (const f of player.food) {
-    if (f.special >= 0) specialN++;
+    if (f.special >= 0) specCounts[f.special]++;
     else normalN++;
   }
   ctx.font = "bold 13px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.fillStyle = '#e6e9ed';
-  ctx.fillText('外卖 ×' + normalN, 28, 64);
-  ctx.fillStyle = '#ffd23f';
-  ctx.fillText('特殊 ×' + specialN, 112, 64);
+  ctx.fillText('外卖 ×' + normalN, 28, 66);
+  let sx = 100;
+  for (let i = 0; i < specCounts.length; i++) {
+    if (specCounts[i] <= 0) continue;
+    ctx.save();
+    ctx.translate(sx, 60);
+    drawFoodItem({ special: i, poison: false, f: null }, 22);
+    ctx.restore();
+    ctx.fillStyle = '#ffd23f';
+    ctx.font = "bold 10px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.fillText('×' + specCounts[i], sx + 12, 70);
+    sx += 26;
+  }
   /* 金钱(负数显示红色) */
   ctx.fillStyle = player.money < 0 ? '#ff6b6b' : '#ffd23f';
   ctx.font = "bold 16px 'PingFang SC','Microsoft YaHei',sans-serif";
@@ -310,11 +335,49 @@ function drawHUD() {
   ctx.fillStyle = '#ffffff';
   ctx.font = "bold 10px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.fillText('犯罪 Lv' + player.crimeLvl, 20, 131);
-  if (player.slowT > 0) {
-    /* 扎胎减速提示 */
-    ctx.fillStyle = '#ff9d5c';
-    ctx.fillText('扎胎减速 ' + Math.ceil(player.slowT) + 's', 88, 131);
+
+  /* Boss 血条(犯罪条下方, 不与其它 UI 重叠) */
+  if (boss) {
+    const bw = W - 40;
+    const bx = 20;
+    const by = 140;
+    fillRR(bx - 2, by - 2, bw + 4, 20, 10, 'rgba(10,12,15,0.7)');
+    fillRR(bx, by, Math.max(4, bw * (boss.hp / boss.maxHp)), 16, 8, '#e5484d');
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.font = "bold 11px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.fillText('逆行大运  ' + Math.ceil(boss.hp) + ' / ' + boss.maxHp, W / 2, by + 13);
   }
+
+  /* 特殊效果倒计时 */
+  drawBuffs();
+
+  /* 暂停 / 音量 按钮 */
+  fillRR(pauseBtn.x, pauseBtn.y, pauseBtn.w, pauseBtn.h, 8, 'rgba(10,12,15,0.55)');
+  ctx.fillStyle = '#e6e9ed';
+  if (game.paused) {
+    /* 播放三角 */
+    ctx.beginPath();
+    ctx.moveTo(pauseBtn.x + 12, pauseBtn.y + 10);
+    ctx.lineTo(pauseBtn.x + 12, pauseBtn.y + 24);
+    ctx.lineTo(pauseBtn.x + 25, pauseBtn.y + 17);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    /* 暂停双竖线 */
+    ctx.fillRect(pauseBtn.x + 12, pauseBtn.y + 10, 4, 14);
+    ctx.fillRect(pauseBtn.x + 19, pauseBtn.y + 10, 4, 14);
+  }
+  fillRR(soundBtn.x, soundBtn.y, soundBtn.w, soundBtn.h, 8, 'rgba(10,12,15,0.55)');
+  const vol = SFX.getVolume();
+  ctx.fillStyle = vol <= 0 ? '#8a929c' : '#e6e9ed';
+  ctx.font = "14px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.textAlign = 'center';
+  ctx.fillText(vol <= 0 ? '🔇' : '🔊', soundBtn.x + soundBtn.w / 2, soundBtn.y + 22);
+  ctx.fillStyle = '#9aa3ad';
+  ctx.font = "9px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText(Math.round(vol * 100) + '%', soundBtn.x + soundBtn.w / 2, soundBtn.y + 31);
+  ctx.textAlign = 'left';
 
   /* 右上: 当前速度 + 已行驶里程 */
   fillRR(W - 176, 12, 164, 64, 12, 'rgba(10,12,15,0.55)');
@@ -369,7 +432,11 @@ function drawHUD() {
   ctx.fillText('回血', foodBtn.x + 62, foodBtn.y + 32);
   ctx.fillStyle = canUse ? '#c7cdd4' : '#6a727c';
   ctx.font = "11px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('+' + HEAL_AMT + ' HP', foodBtn.x + 62, foodBtn.y + 50);
+  ctx.fillText(
+    '+' + Math.round(HEAL_AMT * (vehicleDef().healMul || 1)) + ' HP',
+    foodBtn.x + 62,
+    foodBtn.y + 50,
+  );
 
   /* 投掷按钮(消耗最下方非特殊外卖, 自动锁定敌人) */
   const throwIdx = oldestNonSpecialIndex();
@@ -432,16 +499,17 @@ function drawHUD() {
   }
 
   /* 右侧: 有客户时显示距离与需求, 无客户时显示预警 */
-  if (customer) {
+  const nextC = nearestCustomer();
+  if (nextC) {
     fillRR(W - 170, 92, 158, 72, 12, 'rgba(10,12,15,0.55)');
     ctx.textAlign = 'right';
     ctx.fillStyle = '#e6e9ed';
     ctx.font = "bold 16px 'PingFang SC','Microsoft YaHei',sans-serif";
-    const distM = Math.max(0, Math.round((customer.y - player.y) / PX_PER_M));
+    const distM = Math.max(0, Math.round((nextC.y - player.y) / PX_PER_M));
     ctx.fillText('距离客户 ' + distM + ' m', W - 24, 116);
     ctx.fillStyle = '#ffd23f';
     ctx.font = "bold 15px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillText('需要 × ' + customer.demand, W - 24, 144);
+    ctx.fillText(nextC.special >= 0 ? '特殊客户' : '需要 × ' + nextC.demand, W - 24, 144);
   } else if (assets.customer && !game.over) {
     /* 客户预警: 再行驶多少米从上方刷新一个客户 */
     const remainM = Math.max(0, Math.round((nextCustomerDist - game.totalDist) / PX_PER_M));
@@ -472,6 +540,51 @@ function drawScreenMsg() {
   ctx.fillStyle = '#ffd23f';
   ctx.fillText(screenMsg.text, W / 2, H * 0.4);
   ctx.restore();
+}
+
+/* ---- 特殊效果倒计时条 ---- */
+function drawBuffs() {
+  let y = boss ? 172 : 150; // 有 Boss 血条时下移, 避免重叠
+  for (const b of BUFF_ROWS) {
+    const t = player.buff[b.key];
+    if (t <= 0) continue;
+    const ratio = Math.min(1, t / b.max);
+    fillRR(12, y, 132, 16, 8, 'rgba(10,12,15,0.55)');
+    fillRR(14, y + 2, Math.max(2, 128 * ratio), 12, 6, b.color);
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.85)';
+    ctx.shadowBlur = 3;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = "bold 10px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.textAlign = 'left';
+    ctx.fillText(b.label + ' ' + t.toFixed(1) + 's', 20, y + 12);
+    ctx.restore();
+    y += 20;
+  }
+}
+
+/* ---- 暂停界面 ---- */
+function drawPause() {
+  if (!game.paused) return;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffd23f';
+  ctx.font = "bold 34px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('已暂停', W / 2, H * 0.44);
+  ctx.fillStyle = '#c7cdd4';
+  ctx.font = "14px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('点击暂停按钮 / 按 Esc 继续', W / 2, H * 0.44 + 34);
+  ctx.fillText('音量 ' + Math.round(SFX.getVolume() * 100) + '%（点右上角喇叭切换）', W / 2, H * 0.44 + 58);
+  /* 返回开始界面按钮 */
+  fillRR(pauseHomeBtn.x, pauseHomeBtn.y, pauseHomeBtn.w, pauseHomeBtn.h, 12, '#2b2b2b');
+  ctx.strokeStyle = '#ffd23f';
+  ctx.lineWidth = 2;
+  rr(pauseHomeBtn.x, pauseHomeBtn.y, pauseHomeBtn.w, pauseHomeBtn.h, 12);
+  ctx.stroke();
+  ctx.fillStyle = '#ffd23f';
+  ctx.font = "bold 18px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('返回开始界面', W / 2, pauseHomeBtn.y + 33);
 }
 
 /* ---- 游戏结束界面 ---- */

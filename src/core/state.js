@@ -6,13 +6,15 @@
 
 const game = {
   distance: 0, // 本圈内滚动距离(px)
-  totalDist: 0, // 累计行驶距离(px)
+  totalDist: 0, // 累计行驶距离(px, 逻辑: 难度/调度)
+  scrollDist: 0, // 视觉滚动距离(px, 供场景物体定位, 含视觉加速)
   time: 0,
   started: false, // 是否已开始(开始界面点开始按钮后为 true)
   speed: VEHICLES.walk.baseSpeed, // 默认载具(步行)的基础速度
   over: false, // 游戏结束标记
   overReason: '', // 结束原因: hp(受伤) / bankrupt(破产)
   shake: 0, // 受击屏幕震动计时
+  paused: false, // 是否暂停
   menuScreen: 'main', // 开始界面层级: 'main' 主菜单 | 'vehicle' 出行方式选择
 };
 

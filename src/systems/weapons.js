@@ -2,7 +2,7 @@
 
 /* 装备: 枪械自动瞄准开火 / 子弹飞行 / 匕首挥砍特效 */
 
-/* global enemies, player, IMG, assets, ctx, game, WEAPONS, damageEnemy, W, H, spawnBoom */
+/* global enemies, player, IMG, assets, ctx, game, WEAPONS, damageEnemy, W, H, spawnBoom, SFX */
 
 const bullets = [];
 const slashFX = []; // 匕首挥砍特效
@@ -68,6 +68,7 @@ function fireBullet(def, target) {
     dmg: def.dmg,
     life: 0.9,
   });
+  SFX.play('shoot');
 }
 function updateWeapon(dt) {
   /* 枪械: 各自独立冷却, 自动瞄准最近敌人自动开火(可同时持有) */

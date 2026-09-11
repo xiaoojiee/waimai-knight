@@ -11,13 +11,14 @@ let crimeCool = 0; // 停止犯罪后的衰减冷却
 
 /* 世界坐标 → 屏幕 y(玩家标称位置为锚点) */
 function zoneScreenY(worldDist) {
-  return ZONE_ANCHOR_Y - (worldDist - game.totalDist);
+  return ZONE_ANCHOR_Y - (worldDist - game.scrollDist); // 用视觉滚动距离, 与地面同步
 }
 function spawnZone() {
   zone = {
     side: Math.random() < 0.5 ? 0 : 1, // 0 = 占用左半车道
-    worldStart: game.totalDist + 2000, // 前方 100m 出现
-    worldEnd: game.totalDist + 2000 + ZONE_LEN_MIN + Math.random() * (ZONE_LEN_MAX - ZONE_LEN_MIN),
+    worldStart: game.scrollDist + 2000, // 前方出现
+    worldEnd:
+      game.scrollDist + 2000 + ZONE_LEN_MIN + Math.random() * (ZONE_LEN_MAX - ZONE_LEN_MIN),
   };
   zoneSigns.length = 0;
   /* 警告牌: 起始边一块 + 结束边一块, 立在维修路段(占用车道)的 x 轴中央 */
@@ -119,6 +120,9 @@ function updateCrime(dt) {
     player.cementT = 0;
   }
   if (gain > 0) {
+    /* 载具犯罪倍率(如火车头降到 0.1) */
+    const crimeMul = vehicleDef().crimeMul || 1;
+    if (crimeMul !== 1) gain *= crimeMul;
     /* 「我超勇的」: 犯罪累积速率降到 10% */
     if (player.buff.brave > 0) gain *= BRAVE_CRIME_MUL;
     player.crime += gain;
@@ -184,7 +188,7 @@ function drawZone() {
   }
   ctx.stroke();
   ctx.restore();
-  /* 警告牌(贴图, 立于路段中部; 加载失败回退矢量绘制) */
+  /* 路障(贴图, 立于路段中部) */
   for (const s of zoneSigns) {
     if (s.dead) continue;
     ctx.save();
@@ -194,25 +198,6 @@ function drawZone() {
       const sh = 52;
       const sw = (sh * IMG.sign.naturalWidth) / IMG.sign.naturalHeight;
       ctx.drawImage(IMG.sign, -sw / 2, -sh, sw, sh);
-    } else {
-      /* 回退: 呼吸光晕 + 黄底黑框 */
-      ctx.fillStyle = 'rgba(255,200,60,' + (0.18 + 0.12 * Math.sin(game.time * 5)) + ')';
-      ctx.beginPath();
-      ctx.arc(0, -20, 32, 0, Math.PI * 2);
-      ctx.fill();
-      /* 杆 */
-      ctx.fillStyle = '#6a6f76';
-      ctx.fillRect(-2.5, -2, 5, 24);
-      /* 牌面 */
-      fillRR(-18, -34, 36, 26, 4, '#ffb300');
-      ctx.strokeStyle = '#1a1a1a';
-      ctx.lineWidth = 2;
-      rr(-18, -34, 36, 26, 4);
-      ctx.stroke();
-      ctx.fillStyle = '#1a1a1a';
-      ctx.textAlign = 'center';
-      ctx.font = "bold 20px 'PingFang SC','Microsoft YaHei',sans-serif";
-      ctx.fillText('!', 0, -15);
     }
     ctx.restore();
   }

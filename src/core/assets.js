@@ -2,7 +2,7 @@
 
 /* 贴图资源: 道路/骑手必需(加载完才 ready), 其余贴图可选 */
 
-/* global detectCustomerFrames, detectSpecialCustomerFrames, detectSpriteBox, updateBounds, applyVehicle, POLICE_BOX:writable, SPIKE_BOX:writable, spritesReady:writable, player */
+/* global detectCustomerFrames, detectSpecialCustomerFrames, detectSpriteBox, updateBounds, applyVehicle, POLICE_BOX:writable, SPIKE_BOX:writable, TRUCK_BOX:writable, spritesReady:writable, player */
 
 const IMG = {
   road: new Image(),
@@ -24,6 +24,7 @@ const IMG = {
   police: new Image(),
   spike: new Image(),
   shop: new Image(),
+  truck: new Image(),
 };
 const assets = {
   road: false,
@@ -45,6 +46,7 @@ const assets = {
   police: false,
   spike: false,
   shop: false,
+  truck: false,
 };
 /* 各贴图非透明内容包围盒(剔除留白), 供碰撞/边界/阴影使用 */
 const SPRITE_BOX = {};
@@ -59,6 +61,15 @@ function checkReady() {
   }
   checked = true;
   ready = true;
+}
+/* 图片解码完成后再检测内容包围盒(避免刚 onload 时采到空白导致检测失败) */
+function detectWhenReady(img, set) {
+  const run = () => {
+    const b = detectSpriteBox(img);
+    if (b) set(b);
+  };
+  if (img.decode) img.decode().then(run).catch(run);
+  else run();
 }
 /* 加载进度 0~1 */
 function loadProgress() {
@@ -77,14 +88,18 @@ IMG.road.onload = () => {
 };
 IMG.walk.onload = () => {
   assets.walk = true;
-  SPRITE_BOX.walk = detectSpriteBox(IMG.walk);
+  detectWhenReady(IMG.walk, (b) => {
+    SPRITE_BOX.walk = b;
+  });
   if (player.vehicle === 'walk') applyVehicle('walk');
   checkReady();
 };
 IMG.walk.src = 'assets/贴图/步行.png';
 IMG.rider.onload = () => {
   assets.rider = true;
-  SPRITE_BOX.rider = detectSpriteBox(IMG.rider);
+  detectWhenReady(IMG.rider, (b) => {
+    SPRITE_BOX.rider = b;
+  });
   spritesReady = true;
   if (player.vehicle === 'rider') applyVehicle('rider');
   else updateBounds();
@@ -93,19 +108,25 @@ IMG.rider.onload = () => {
 IMG.road.src = 'assets/贴图/道路.png';
 IMG.cow.onload = () => {
   assets.cow = true;
-  SPRITE_BOX.cow = detectSpriteBox(IMG.cow);
+  detectWhenReady(IMG.cow, (b) => {
+    SPRITE_BOX.cow = b;
+  });
   if (player.vehicle === 'cow') applyVehicle('cow');
 }; // 牛可选
 IMG.cow.src = 'assets/贴图/牛来.png';
 IMG.car.onload = () => {
   assets.car = true;
-  SPRITE_BOX.car = detectSpriteBox(IMG.car);
+  detectWhenReady(IMG.car, (b) => {
+    SPRITE_BOX.car = b;
+  });
   if (player.vehicle === 'car') applyVehicle('car');
 }; // 跑车可选
 IMG.car.src = 'assets/贴图/跑车.png';
 IMG.train.onload = () => {
   assets.train = true;
-  SPRITE_BOX.train = detectSpriteBox(IMG.train);
+  detectWhenReady(IMG.train, (b) => {
+    SPRITE_BOX.train = b;
+  });
   if (player.vehicle === 'train') applyVehicle('train');
 }; // 火车头可选
 IMG.train.src = 'assets/贴图/火车头.png';
@@ -116,7 +137,9 @@ IMG.smoke.onload = () => {
 IMG.smoke.src = 'assets/贴图/烟雾特效.png';
 IMG.enemy.onload = () => {
   assets.enemy = true;
-  SPRITE_BOX.enemy = detectSpriteBox(IMG.enemy);
+  detectWhenReady(IMG.enemy, (b) => {
+    SPRITE_BOX.enemy = b;
+  });
 }; // 敌骑手可选
 IMG.enemy.src = 'assets/贴图/敌方骑手.png';
 IMG.boom.onload = () => {
@@ -155,15 +178,26 @@ IMG.sign.onload = () => {
 IMG.sign.src = 'assets/贴图/路障.png';
 IMG.police.onload = () => {
   assets.police = true;
-  POLICE_BOX = detectSpriteBox(IMG.police); // 精确裁切
+  detectWhenReady(IMG.police, (b) => {
+    POLICE_BOX = b;
+  }); // 精确裁切
 }; // 警车可选
 IMG.police.src = 'assets/贴图/警车.png';
 IMG.spike.onload = () => {
   assets.spike = true;
-  SPIKE_BOX = detectSpriteBox(IMG.spike); // 精确裁切
+  detectWhenReady(IMG.spike, (b) => {
+    SPIKE_BOX = b;
+  }); // 精确裁切
 }; // 路钉可选
 IMG.spike.src = 'assets/贴图/路钉.png';
 IMG.shop.onload = () => {
   assets.shop = true;
 }; // 店铺可选
 IMG.shop.src = 'assets/贴图/店铺.png';
+IMG.truck.onload = () => {
+  assets.truck = true;
+  detectWhenReady(IMG.truck, (b) => {
+    TRUCK_BOX = b;
+  }); // 精确裁切
+}; // 大运(Boss)可选
+IMG.truck.src = 'assets/贴图/大运.png';

@@ -1,10 +1,10 @@
 'use strict';
 
-/* 水泥区店铺(卖装备)与饭店(卖外卖) */
+/* 水泥区店铺(卖装备)与饭店(卖外卖); 均可同时存在多个 */
 
-/* global game, assets, PX_PER_M, SHOP_DELAY_FIRST_M, SHOP_INTERVAL_MIN_M, SHOP_INTERVAL_MAX_M, WEAPONS, SHOP_FRAMES, player, addFloatText, REST_DELAY_FIRST_M, REST_INTERVAL_MIN_M, REST_INTERVAL_MAX_M, FOOD_BUY_PRICE, FOOD_BUNDLE, ctx, fillRR, H, IMG, CEMENT_X, W, difficulty, makeFood, damagePlayer, spawnBoom, SHOP_RAM_DMG */
+/* global game, assets, PX_PER_M, SHOP_DELAY_FIRST_M, SHOP_INTERVAL_MIN_M, SHOP_INTERVAL_MAX_M, WEAPONS, SHOP_FRAMES, player, addFloatText, REST_DELAY_FIRST_M, REST_INTERVAL_MIN_M, REST_INTERVAL_MAX_M, FOOD_BUY_PRICE, FOOD_BUNDLE, ctx, fillRR, H, IMG, CEMENT_X, W, difficulty, makeFood, damagePlayer, spawnBoom, SHOP_RAM_DMG, vehicleDef, GROUND_SCROLL_MUL */
 
-let shop = null; // 当前店铺 { type, x, y, fly, vx, vy, rot, spin, life }
+const shops = []; // 多个店铺 { type, x, y, fly, vx, vy, rot, spin, life }
 let nextShopDist = SHOP_DELAY_FIRST_M * PX_PER_M; // 下一个店铺出现的距离阈值(px)
 const SHOP_HIT_R = 70;
 const SHOP_SIZE = 160;
@@ -38,20 +38,26 @@ function updateFly(b, dt) {
   b.rot += b.spin * dt;
   return b.life > 0.95;
 }
+/* 错开生成位置: 顶部已有建筑时往下排 */
+function staggerY(list, base) {
+  let n = 0;
+  for (const b of list) if (b.y < base + 260) n++;
+  return base - n * 150;
+}
 
 function spawnShop() {
   const types = ['dagger', 'pistol', 'rifle', 'shield'];
-  shop = {
+  shops.push({
     type: types[Math.floor(Math.random() * types.length)],
     x: CEMENT_X + (W - CEMENT_X) / 2,
-    y: -60,
+    y: staggerY(shops, -60),
     fly: false,
     vx: 0,
     vy: 0,
     rot: 0,
     spin: 0,
     life: 0,
-  };
+  });
 }
 function scheduleShop() {
   /* 难度越高店铺出现越频繁(间隔最多缩短 65%) */
@@ -62,99 +68,104 @@ function scheduleShop() {
   nextShopDist = game.totalDist + m * PX_PER_M;
 }
 function updateShop(dt) {
-  if (!shop) {
-    if (!game.over && assets.item && game.totalDist >= nextShopDist) {
-      /* 避免与饭店刷在一起 */
-      if (restaurant && restaurant.y < 160) {
-        nextShopDist += 60 * PX_PER_M;
-      } else {
-        spawnShop();
-      }
-    }
-    return;
-  }
-  if (shop.fly) {
-    if (updateFly(shop, dt)) {
-      shop = null;
-      scheduleShop();
-    }
-    return;
-  }
-  shop.y += game.speed * dt;
-  if (hitBuilding(shop)) ramShop();
-  if (shop && !shop.fly && shop.y > H + 100) {
-    shop = null;
+  if (!game.over && assets.item && game.totalDist >= nextShopDist) {
+    spawnShop();
     scheduleShop();
   }
+  for (let i = shops.length - 1; i >= 0; i--) {
+    const s = shops[i];
+    if (s.fly) {
+      if (updateFly(s, dt)) shops.splice(i, 1);
+      continue;
+    }
+    s.y += game.speed * GROUND_SCROLL_MUL * dt;
+    if (hitBuilding(s)) ramShop(s);
+    if (s && !s.fly && s.y > H + 100) shops.splice(i, 1);
+  }
 }
-function ramShop() {
-  const def = WEAPONS[shop.type];
-  if (player.money >= def.price) {
-    player.money -= def.price;
-    if (shop.type === 'pistol' || shop.type === 'rifle') {
+/* 载具购买时回血(如跑车) */
+function healOnBuy() {
+  const heal = vehicleDef().buyHeal || 0;
+  if (heal <= 0) return;
+  player.hp = Math.min(player.maxHp, player.hp + heal);
+  player.healFlash = 0.4;
+  addFloatText(player.x, player.y - player.height / 2 - 16, '+' + heal + ' HP', '#4ade80');
+}
+
+function ramShop(s) {
+  const def = WEAPONS[s.type];
+  const price = def.price;
+  if (player.money >= price) {
+    player.money -= price;
+    if (s.type === 'pistol' || s.type === 'rifle') {
       delete player.weapons.pistol;
       delete player.weapons.rifle;
     }
-    player.weapons[shop.type] = {
+    player.weapons[s.type] = {
       ammo: def.uses ?? def.ammo ?? def.charges,
       cd: 0,
     };
-    addFloatText(player.x, player.y - player.height / 2, def.label + ' -$' + def.price, '#ffd23f');
+    addFloatText(player.x, player.y - player.height / 2, def.label + ' -$' + price, '#ffd23f');
+    healOnBuy();
   } else {
     damagePlayer(SHOP_RAM_DMG);
-    addFloatText(player.x, player.y - player.height / 2, '钱不够! 撞毁', '#ff6b6b');
   }
-  flyBuilding(shop);
+  flyBuilding(s);
 }
 
 /* ---- 店铺绘制 ---- */
 function drawShop() {
-  if (!shop) return;
-  const def = WEAPONS[shop.type];
-  const s = SHOP_SIZE;
-  ctx.save();
-  ctx.translate(shop.x, shop.y);
-  if (shop.fly) {
-    ctx.rotate(shop.rot);
-    ctx.globalAlpha = Math.max(0, 1 - shop.life / 0.95);
+  for (const s of shops) {
+    const def = WEAPONS[s.type];
+    const size = SHOP_SIZE;
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    if (s.fly) {
+      ctx.rotate(s.rot);
+      ctx.globalAlpha = Math.max(0, 1 - s.life / 0.95);
+    }
+    if (assets.shop) {
+      /* 店铺图集 3列×2行 */
+      const fw = IMG.shop.naturalWidth / 3;
+      const fh = IMG.shop.naturalHeight / 2;
+      const f = SHOP_FRAMES[s.type];
+      ctx.drawImage(
+        IMG.shop,
+        f[0] * fw + 2,
+        f[1] * fh + 2,
+        fw - 4,
+        fh - 4,
+        -size / 2,
+        -size / 2,
+        size,
+        size,
+      );
+    }
+    if (!s.fly) {
+      fillRR(-26, size / 2 - 4, 52, 18, 9, 'rgba(10,12,15,0.75)');
+      ctx.fillStyle = '#ffd23f';
+      ctx.textAlign = 'center';
+      ctx.font = "bold 12px 'PingFang SC','Microsoft YaHei',sans-serif";
+      ctx.fillText('$' + def.price, 0, size / 2 + 9);
+    }
+    ctx.restore();
   }
-  if (assets.shop) {
-    /* 店铺图集 3列×2行 */
-    const fw = IMG.shop.naturalWidth / 3;
-    const fh = IMG.shop.naturalHeight / 2;
-    const f = SHOP_FRAMES[shop.type];
-    ctx.drawImage(IMG.shop, f[0] * fw + 2, f[1] * fh + 2, fw - 4, fh - 4, -s / 2, -s / 2, s, s);
-  } else {
-    fillRR(-s / 2, -s / 2, s, s, 10, def.color);
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'center';
-    ctx.font = "bold 18px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillText(def.label, 0, 6);
-  }
-  if (!shop.fly) {
-    fillRR(-26, s / 2 - 4, 52, 18, 9, 'rgba(10,12,15,0.75)');
-    ctx.fillStyle = '#ffd23f';
-    ctx.textAlign = 'center';
-    ctx.font = "bold 12px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillText('$' + def.price, 0, s / 2 + 9);
-  }
-  ctx.restore();
 }
 
-let restaurant = null; // 当前饭店 { x, y, fly, vx, vy, rot, spin, life }
+const restaurants = []; // 多个饭店
 let nextRestDist = REST_DELAY_FIRST_M * PX_PER_M; // 下一个饭店出现的距离阈值(px)
 
 function spawnRestaurant() {
-  restaurant = {
+  restaurants.push({
     x: CEMENT_X + (W - CEMENT_X) / 2,
-    y: -60,
+    y: staggerY(restaurants, -60),
     fly: false,
     vx: 0,
     vy: 0,
     rot: 0,
     spin: 0,
     life: 0,
-  };
+  });
 }
 function scheduleRestaurant() {
   /* 难度越高饭店出现越频繁(间隔最多缩短 60%) */
@@ -165,32 +176,22 @@ function scheduleRestaurant() {
   nextRestDist = game.totalDist + m * PX_PER_M;
 }
 function updateRestaurant(dt) {
-  if (!restaurant) {
-    if (!game.over && game.totalDist >= nextRestDist) {
-      /* 避免与武器店铺刷在一起 */
-      if (shop && shop.y < 160) {
-        nextRestDist += 60 * PX_PER_M;
-      } else {
-        spawnRestaurant();
-      }
-    }
-    return;
-  }
-  if (restaurant.fly) {
-    if (updateFly(restaurant, dt)) {
-      restaurant = null;
-      scheduleRestaurant();
-    }
-    return;
-  }
-  restaurant.y += game.speed * dt;
-  if (hitBuilding(restaurant)) ramRestaurant();
-  if (restaurant && !restaurant.fly && restaurant.y > H + 100) {
-    restaurant = null;
+  if (!game.over && game.totalDist >= nextRestDist) {
+    spawnRestaurant();
     scheduleRestaurant();
   }
+  for (let i = restaurants.length - 1; i >= 0; i--) {
+    const r = restaurants[i];
+    if (r.fly) {
+      if (updateFly(r, dt)) restaurants.splice(i, 1);
+      continue;
+    }
+    r.y += game.speed * GROUND_SCROLL_MUL * dt;
+    if (hitBuilding(r)) ramRestaurant(r);
+    if (r && !r.fly && r.y > H + 100) restaurants.splice(i, 1);
+  }
 }
-function ramRestaurant() {
+function ramRestaurant(r) {
   const cost = FOOD_BUY_PRICE * FOOD_BUNDLE;
   if (player.money >= cost) {
     player.money -= cost;
@@ -201,39 +202,34 @@ function ramRestaurant() {
       '+' + FOOD_BUNDLE + ' 外卖 -$' + cost,
       '#ffd23f',
     );
+    healOnBuy();
   } else {
     damagePlayer(SHOP_RAM_DMG);
-    addFloatText(player.x, player.y - player.height / 2, '钱不够! 撞毁', '#ff6b6b');
   }
-  flyBuilding(restaurant);
+  flyBuilding(r);
 }
 function drawRestaurant() {
-  if (!restaurant) return;
-  const s = SHOP_SIZE;
-  ctx.save();
-  ctx.translate(restaurant.x, restaurant.y);
-  if (restaurant.fly) {
-    ctx.rotate(restaurant.rot);
-    ctx.globalAlpha = Math.max(0, 1 - restaurant.life / 0.95);
+  for (const r of restaurants) {
+    const size = SHOP_SIZE;
+    ctx.save();
+    ctx.translate(r.x, r.y);
+    if (r.fly) {
+      ctx.rotate(r.rot);
+      ctx.globalAlpha = Math.max(0, 1 - r.life / 0.95);
+    }
+    if (assets.shop) {
+      /* 店铺图集 3列×2行, 饭店在 0-0 */
+      const fw = IMG.shop.naturalWidth / 3;
+      const fh = IMG.shop.naturalHeight / 2;
+      ctx.drawImage(IMG.shop, 2, 2, fw - 4, fh - 4, -size / 2, -size / 2, size, size);
+    }
+    if (!r.fly) {
+      fillRR(-30, size / 2 - 4, 60, 18, 9, 'rgba(10,12,15,0.75)');
+      ctx.fillStyle = '#ffd23f';
+      ctx.textAlign = 'center';
+      ctx.font = "bold 12px 'PingFang SC','Microsoft YaHei',sans-serif";
+      ctx.fillText(FOOD_BUNDLE + '个 $' + FOOD_BUY_PRICE * FOOD_BUNDLE, 0, size / 2 + 9);
+    }
+    ctx.restore();
   }
-  if (assets.shop) {
-    /* 店铺图集 3列×2行, 饭店在 0-0 */
-    const fw = IMG.shop.naturalWidth / 3;
-    const fh = IMG.shop.naturalHeight / 2;
-    ctx.drawImage(IMG.shop, 2, 2, fw - 4, fh - 4, -s / 2, -s / 2, s, s);
-  } else {
-    fillRR(-s / 2, -s / 2, s, s, 10, '#e67e22');
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'center';
-    ctx.font = "bold 18px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillText('饭店', 0, 6);
-  }
-  if (!restaurant.fly) {
-    fillRR(-30, s / 2 - 4, 60, 18, 9, 'rgba(10,12,15,0.75)');
-    ctx.fillStyle = '#ffd23f';
-    ctx.textAlign = 'center';
-    ctx.font = "bold 12px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillText(FOOD_BUNDLE + '个 $' + FOOD_BUY_PRICE * FOOD_BUNDLE, 0, s / 2 + 9);
-  }
-  ctx.restore();
 }

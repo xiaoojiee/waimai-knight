@@ -2,10 +2,11 @@
 
 /* 碰撞特效(图集 4×4, 用最后一帧 4-4) */
 
-/* global assets, IMG, ctx */
+/* global assets, IMG, ctx, SFX */
 
 const boomParts = [];
 function spawnBoom(x, y, frame) {
+  SFX.play('boom'); // 撞击音
   if (!assets.boom) return;
   boomParts.push({
     x,

@@ -2,7 +2,7 @@
 
 /* 玩家: 受击结算与绘制 */
 
-/* global player, game, HIT_CD, addFloatText, gameOver, ctx, BASE_SPEED, IMG, assets, clamp, spawnBoom, shieldBlockPos, vehicleDef, contentSize, FOOD_STACK_PX, drawFoodItem, drawFoodGlow, BRAVE_DMG_MUL, DASH_TAKEN_MUL */
+/* global player, game, HIT_CD, addFloatText, gameOver, ctx, BASE_SPEED, IMG, assets, clamp, spawnBoom, shieldBlockPos, vehicleDef, contentSize, FOOD_STACK_PX, drawFoodItem, drawFoodGlow, BRAVE_DMG_MUL, DASH_TAKEN_MUL, SFX */
 
 function damagePlayer(d) {
   if (player.hitCd > 0 || game.over) return;
@@ -26,6 +26,7 @@ function damagePlayer(d) {
   player.hp = Math.max(0, player.hp - d);
   player.hitCd = HIT_CD;
   player.flash = 0.35;
+  SFX.play('hurt');
   if (player.hp <= 0) gameOver();
 }
 

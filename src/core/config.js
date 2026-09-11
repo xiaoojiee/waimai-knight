@@ -13,6 +13,7 @@ const CEMENT_CRIME_RATE = 12; // 水泥区犯罪条增速 /s
 const SHOP_RAM_DMG = 20; // 没钱撞飞店铺时的伤害
 
 const TILE_H = 640; // 道路贴图缩放后高度(1536×2048 贴图按画布宽度铺满: 2048×480/1536)
+const GROUND_SCROLL_MUL = 1.7; // 地面贴图滚动视觉加速(纯视觉, 不影响逻辑/难度)
 const LOOP = TILE_H * 20; // 场景无缝循环长度(20 块贴图)
 const PX_PER_M = 20; // 20px 计 1m, 仅用于里程换算
 const BASE_SPEED = 240; // 场景默认前进速度 px/s
@@ -20,12 +21,19 @@ const SPEED_MIN = 30,
   SPEED_MAX = 410; // 速度下限/上限: 向后刹得更慢, 向前冲得略低
 
 /* 碰撞伤害: 侧面相撞双方相同; 前后相撞前方(世界前进方向=屏幕上方)受伤更多 */
-const DMG_SIDE = 15;
-const DMG_FRONT = 24;
-const DMG_REAR = 8;
+const DMG_SIDE = 20; // 整体提高碰撞伤害
+const DMG_FRONT = 22; // 前后碰撞倍率降低(原 1.6×→约 1.1×)
+const DMG_REAR = 10; // 前后碰撞倍率降低(原 0.53×→0.5×)
 const HIT_CD = 0.2; // 玩家受击无敌时间(秒), 防止一帧内多次结算
 const ENEMY_HIT_CD = 0.2; // 敌方受击无敌时间(秒), 保证连续子弹/撞击可连续结算
-const ENEMY_MAX = 3; // 同屏敌骑手上限
+const ENEMY_MAX = 4; // 同屏敌骑手上限
+const ENEMY_AHEAD_RATIO = 0.5; // 默认从上方(前方)出现的敌人比例, 其余从后方超车
+const INITIAL_ENEMIES = 4; // 开局生成的敌人数量
+
+/* ===== 节奏(加快游戏) ===== */
+const DIFFICULTY_FULL_M = 2000; // 满难度里程(米), 越小难度爬升越快
+const PACE_PER_KM = 0.15; // 每公里场景提速比例
+const PACE_MAX = 0.4; // 场景提速上限(+40%)
 const ENEMY_SCALE = 1.3; // 敌方骑手贴图放大倍数
 const HEAL_AMT = 25; // 点击外卖按钮回复的血量
 const RIDER_SCALE = 1.5; // 玩家贴图缩放倍数
@@ -77,9 +85,9 @@ const THROW_RANGE = 340; // 自动锁定范围 px
 const THROW_LIFE = 2.2; // 投掷物最长存活(秒), 超时落地
 const FOOD_PRICE = 20; // 送达每个外卖的报酬
 const FOOD_FINE = 8; // 缺少每个外卖的罚款
-const CUSTOMER_DELAY_FIRST_M = 120; // 开局行驶多远后可能出现第一个客户(米)
-const CUSTOMER_INTERVAL_MIN_M = 60; // 客户间隔距离下限(米)
-const CUSTOMER_INTERVAL_MAX_M = 150; // 客户间隔距离上限(米)
+const CUSTOMER_DELAY_FIRST_M = 50; // 开局行驶多远后可能出现第一个客户(米)
+const CUSTOMER_INTERVAL_MIN_M = 40; // 客户间隔距离下限(米)
+const CUSTOMER_INTERVAL_MAX_M = 100; // 客户间隔距离上限(米)
 const CUSTOMER_SPAWN_CHANCE = 0.6; // 到达距离阈值时的生成概率
 
 /* 装备(道具图集 2×2: 行-列 0-0 匕首 / 0-1 手枪 / 1-0 步枪 / 1-1 盾牌)
@@ -124,17 +132,17 @@ const SHOP_FRAMES = {
   rifle: [0, 1],
   shield: [1, 1],
 };
-const SHOP_DELAY_FIRST_M = 80; // 开局行驶多远后出现第一个店铺(米)
-const SHOP_INTERVAL_MIN_M = 150; // 店铺间隔下限(米)
-const SHOP_INTERVAL_MAX_M = 300; // 店铺间隔上限(米)
+const SHOP_DELAY_FIRST_M = 50; // 开局行驶多远后出现第一个店铺(米)
+const SHOP_INTERVAL_MIN_M = 100; // 店铺间隔下限(米)
+const SHOP_INTERVAL_MAX_M = 200; // 店铺间隔上限(米)
 const FOOD_BUY_PRICE = 10; // 饭店购买单个外卖的价格
 const FOOD_BUNDLE = 5; // 饭店一次购买的外卖数量(一家只卖一次)
-const REST_DELAY_FIRST_M = 200; // 开局行驶多远后出现第一家饭店(米)
-const REST_INTERVAL_MIN_M = 200; // 饭店间隔下限(米)
-const REST_INTERVAL_MAX_M = 400; // 饭店间隔上限(米)
-const ZONE_DELAY_FIRST_M = 200; // 开局行驶多远后出现第一个施工路段(米)
-const ZONE_INTERVAL_MIN_M = 300; // 施工路段间隔下限(米)
-const ZONE_INTERVAL_MAX_M = 600; // 施工路段间隔上限(米)
+const REST_DELAY_FIRST_M = 120; // 开局行驶多远后出现第一家饭店(米)
+const REST_INTERVAL_MIN_M = 130; // 饭店间隔下限(米)
+const REST_INTERVAL_MAX_M = 260; // 饭店间隔上限(米)
+const ZONE_DELAY_FIRST_M = 120; // 开局行驶多远后出现第一个施工路段(米)
+const ZONE_INTERVAL_MIN_M = 200; // 施工路段间隔下限(米)
+const ZONE_INTERVAL_MAX_M = 400; // 施工路段间隔上限(米)
 const ZONE_LEN_MIN = 500; // 施工路段长度下限(px)
 const ZONE_LEN_MAX = 900; // 施工路段长度上限(px)
 const ZONE_ANCHOR_Y = H * 0.66; // 世界坐标 → 屏幕 y 锚点(玩家标称位置)
@@ -242,17 +250,20 @@ const VEHICLES = {
     scale: 2,
     maxDim: 44,
     baseH: 90,
-    maxHp: 130, // 骑行升级版: 全属性更高
+    maxHp: 130,
     baseSpeed: 290,
     maxSpeed: 470,
     moveSpeed: 360,
     brake: 1,
-    damageMul: 1.3,
+    damageMul: 0.8, // 伤害降低
+    healMul: 0.7, // 吃外卖回血量(仍低于正常 1.0)
+    buyHeal: 30, // 购买物品时回复血量
     foodY: -0.1,
     foodGap: 0.2,
     smoke: 'continuous',
     cementCrime: true,
-    speedLimit: 420, // 跑车: 犯罪限速更高
+    speedLimit: 400, // 跑车: 犯罪限速更高
+    crimeMul: 1.4, // 犯罪条累积略高
   },
   train: {
     label: '火车头',
@@ -266,15 +277,20 @@ const VEHICLES = {
     maxHp: 180,
     baseSpeed: 640, // 极快(S 级, 面板冲破圆框)
     maxSpeed: 850,
-    moveSpeed: 340,
+    moveSpeed: 440,
     brake: 1,
-    damageMul: 1.2,
+    damageMul: 3, // 撞击敌人伤害高
     damageTakenMul: 0.5, // 受到的撞击伤害低
     foodY: -0.1,
     foodGap: 0.2,
     smoke: 'continuous',
     cementCrime: true,
     hpDrain: true, // 血量持续下降
+    crimeMul: 0.1, // 犯罪条累积降低到 0.1
+    pullR: 160, // 牵引范围: 吸引附近敌人
+    aheadRatio: 0.85, // 更多敌人从上方来
+    enemyRate: 1.8, // 敌人刷新率倍率(间隔 ÷ 该值)
+    enemyCapBonus: 3, // 同屏敌人数上限加成
   },
 };
 
@@ -288,3 +304,23 @@ const DASH_TIME = 1.2; // 冲刺持续(秒)
 const DASH_SPEED_MUL = 2.2; // 冲刺时默认滚动速度倍率
 const DASH_DEALT_MUL = 3; // 冲刺时撞击敌人伤害倍率
 const DASH_TAKEN_MUL = 0.3; // 冲刺时受到伤害倍率
+
+/* ===== 逆行大运 Boss ===== */
+const BOSS_HP = 500; // 血量
+const BOSS_RAM_DMG = 20; // 玩家每次撞 Boss 扣血
+const BOSS_RAM_CD = 0.4; // 玩家撞 Boss 冷却(秒)
+const BOSS_POLICE_DMG = 120; // 警车撞 Boss 扣血(大量)
+const BOSS_SIZE = 200; // 绘制高度(px)
+const BOSS_DEFAULT_Y = 10; // 默认悬停的固定屏幕 y(相对屏幕静止, 只露出车头)
+const BOSS_LANE_INTERVAL_MIN = 1.5; // 变道间隔下限(秒)
+const BOSS_LANE_INTERVAL_MAX = 3; // 变道间隔上限(秒)
+const BOSS_LANE_SPEED = 140; // 变道横向速度 px/s
+const BOSS_CHARGE_INTERVAL_MIN = 2.5; // 悬停后前冲间隔下限(秒)
+const BOSS_CHARGE_INTERVAL_MAX = 4; // 悬停后前冲间隔上限(秒)
+const BOSS_CHARGE_SPEED = 520; // 前冲/逃逸速度 px/s
+const BOSS_TIME = 30; // 存活时限(秒), 超时向下方开走
+const BOSS_DELAY_FIRST_M = 1000; // 开局行驶多远后可能出现第一个大运(米)
+const BOSS_INTERVAL_MIN_M = 400; // 大运间隔下限(米)
+const BOSS_INTERVAL_MAX_M = 700; // 大运间隔上限(米)
+const BOSS_SPAWN_CHANCE = 0.6; // 到达阈值时的生成概率
+const BOSS_MONEY = 300; // 击败掉落金钱

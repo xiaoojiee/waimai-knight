@@ -2,12 +2,13 @@
 
 /* 游戏流程: 结束与重新开始 */
 
-/* global game, player, W, H, BASE_SPEED, VEHICLES, enemies, boomParts, smokeParts, pickups, floatTexts, START_FOOD, CUSTOMER_DELAY_FIRST_M, PX_PER_M, SHOP_DELAY_FIRST_M, REST_DELAY_FIRST_M, ZONE_DELAY_FIRST_M, zoneSigns, police, bullets, slashFX, spawnBoom, spawnSmokeAt, makeFood, applyVehicle, thrownFood, roadFoodTimer:writable, screenMsg, customer:writable, nextCustomerDist:writable, shop:writable, nextShopDist:writable, restaurant:writable, nextRestDist:writable, zone:writable, nextZoneDist:writable, crimeCool:writable, policeTimer:writable, spikeStrip:writable, spikeTimer:writable, enemyTimer:writable */
+/* global game, player, W, H, BASE_SPEED, VEHICLES, enemies, boomParts, smokeParts, pickups, floatTexts, START_FOOD, CUSTOMER_DELAY_FIRST_M, PX_PER_M, SHOP_DELAY_FIRST_M, REST_DELAY_FIRST_M, ZONE_DELAY_FIRST_M, zoneSigns, police, bullets, slashFX, spawnBoom, spawnSmokeAt, makeFood, applyVehicle, thrownFood, roadFoodTimer:writable, screenMsg, SFX, customers, nextCustomerDist:writable, shops, nextShopDist:writable, restaurants, nextRestDist:writable, zone:writable, nextZoneDist:writable, crimeCool:writable, policeTimer:writable, spikeStrip:writable, spikeTimer:writable, enemyTimer:writable, boss:writable, nextBossDist:writable, BOSS_DELAY_FIRST_M */
 
 function gameOver() {
   if (!game.overReason) game.overReason = 'hp';
   game.over = true;
   game.shake = 0.6;
+  SFX.play('death');
   /* 玩家爆炸: 三连爆 + 烟雾 */
   for (let i = 0; i < 3; i++) {
     spawnBoom(player.x + (Math.random() - 0.5) * 40, player.y + (Math.random() - 0.5) * 40);
@@ -26,8 +27,10 @@ function resetGame() {
   game.overReason = '';
   game.distance = 0;
   game.totalDist = 0;
+  game.scrollDist = 0;
   game.speed = VEHICLES.walk.baseSpeed;
   game.shake = 0;
+  game.paused = false;
   game.menuScreen = 'main';
   player.x = W / 2;
   player.y = H * 0.66;
@@ -50,11 +53,11 @@ function resetGame() {
   player.foodLag = [];
   player.money = 0;
   player.healFlash = 0;
-  customer = null;
+  customers.length = 0;
   nextCustomerDist = CUSTOMER_DELAY_FIRST_M * PX_PER_M;
-  shop = null;
+  shops.length = 0;
   nextShopDist = SHOP_DELAY_FIRST_M * PX_PER_M;
-  restaurant = null;
+  restaurants.length = 0;
   nextRestDist = REST_DELAY_FIRST_M * PX_PER_M;
   zone = null;
   zoneSigns.length = 0;
@@ -74,6 +77,8 @@ function resetGame() {
   policeTimer = 0;
   spikeStrip = null;
   spikeTimer = 0;
+  boss = null;
+  nextBossDist = BOSS_DELAY_FIRST_M * PX_PER_M;
   player.weapons = {};
   bullets.length = 0;
   slashFX.length = 0;

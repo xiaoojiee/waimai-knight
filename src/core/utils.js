@@ -2,15 +2,20 @@
 
 /* 通用工具与绘制辅助(本文件禁止顶层执行语句: 绘制函数依赖 canvas.js 声明的 ctx) */
 
-/* global ctx, game, PX_PER_M */
+/* global ctx, game, PX_PER_M, DIFFICULTY_FULL_M, PACE_MAX, PACE_PER_KM */
 
 /* 数值钳制 */
 function clamp(v, a, b) {
   return v < a ? a : v > b ? b : v;
 }
-/* 难度系数 0~1: 按已行驶里程线性增长, 4km 时达到满难度 */
+/* 难度系数 0~1: 按已行驶里程线性增长, DIFFICULTY_FULL_M 米时达到满难度 */
 function difficulty() {
-  return Math.min(1, game.totalDist / PX_PER_M / 4000);
+  return Math.min(1, game.totalDist / PX_PER_M / DIFFICULTY_FULL_M);
+}
+/* 节奏系数: 随里程提升场景基础速度(1 → 1+PACE_MAX) */
+function pace() {
+  const km = game.totalDist / PX_PER_M / 1000;
+  return 1 + Math.min(PACE_MAX, km * PACE_PER_KM);
 }
 /* 圆角矩形路径 */
 function rr(x, y, w, h, r) {

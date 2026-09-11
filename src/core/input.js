@@ -2,7 +2,7 @@
 
 /* 输入: 键盘(WASD/方向键)+ 手机虚拟摇杆 + 外卖按钮点击 */
 
-/* global canvas, input, W, H, game, foodBtn, startBtn, vehicleBtns, vehicleOpenBtn, vehicleBackBtn, useFood, resetGame, adjustCrime, grantWeapon, player, addFloatText, PX_PER_M, makeFood, makeSpecialFood, applySpecialEffect, VEHICLES, applyVehicle, throwBtn, throwFood, ready */
+/* global canvas, input, W, H, game, foodBtn, startBtn, vehicleBtns, vehicleOpenBtn, vehicleBackBtn, useFood, resetGame, adjustCrime, grantWeapon, player, addFloatText, PX_PER_M, makeFood, makeSpecialFood, applySpecialEffect, VEHICLES, applyVehicle, throwBtn, throwFood, ready, SFX, pauseBtn, soundBtn, pauseHomeBtn, spawnInitialEnemies, INITIAL_ENEMIES, spawnBoss */
 
 const KEYMAP = {
   ArrowLeft: 'left',
@@ -17,6 +17,13 @@ const KEYMAP = {
 
 window.addEventListener('keydown', (e) => {
   if (!ready) return; // 加载中屏蔽输入
+  SFX.unlock(); // 用户交互, 解锁音频
+  /* Esc: 暂停/继续 */
+  if (e.code === 'Escape' && game.started && !game.over) {
+    e.preventDefault();
+    game.paused = !game.paused;
+    return;
+  }
   const k = KEYMAP[e.code];
   if (!k) {
     /* ---- 测试快捷键 ---- */
@@ -81,6 +88,13 @@ window.addEventListener('keydown', (e) => {
       applySpecialEffect(3);
       return;
     }
+    /* B: 测试用, 立即生成大运 Boss */
+    if (e.code === 'KeyB') {
+      e.preventDefault();
+      spawnBoss();
+      addFloatText(player.x, player.y - player.height / 2, '大运来了!', '#ff9d5c');
+      return;
+    }
     /* T: 测试用, 增加 500m 路程快速进入高难度 */
     if (e.code === 'KeyT') {
       e.preventDefault();
@@ -116,6 +130,7 @@ const JOY_RADIUS = 70;
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   if (!ready) return; // 加载中屏蔽输入
+  SFX.unlock(); // 用户交互, 解锁音频
   if (!game.started) {
     const p = toLogical(e);
     const hit = (b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
@@ -141,6 +156,8 @@ canvas.addEventListener('pointerdown', (e) => {
       if (hit(startBtn)) {
         game.started = true;
         applyVehicle(player.vehicle);
+        spawnInitialEnemies(INITIAL_ENEMIES); // 开局一批敌人
+        SFX.play('start');
       }
     }
     return;
@@ -152,6 +169,24 @@ canvas.addEventListener('pointerdown', (e) => {
   }
   const p = toLogical(e);
   const hitBtn = (b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
+  /* 暂停 / 音量 按钮 */
+  if (hitBtn(pauseBtn)) {
+    game.paused = !game.paused;
+    return;
+  }
+  if (hitBtn(soundBtn)) {
+    const v = SFX.getVolume();
+    SFX.setVolume(v > 0.75 ? 0.5 : v > 0.25 ? 0 : 1); // 100% → 50% → 0 → 100%
+    return;
+  }
+  if (game.paused) {
+    /* 暂停界面: 仅「返回开始界面」可点 */
+    if (hitBtn(pauseHomeBtn)) {
+      resetGame();
+      game.started = false; // 退回开始界面
+    }
+    return;
+  }
   /* 点击回血按钮 → 消耗 1 个外卖回血 */
   if (hitBtn(foodBtn)) {
     useFood();

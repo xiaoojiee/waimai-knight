@@ -2,7 +2,7 @@
 
 /* 敌方骑手: 生成(前方被超越/后方超车两种)、更新、受击结算与绘制 */
 
-/* global game, ENEMY_MAX, assets, H, ENEMY_DIE_TIME, clamp, ROAD, zone, zoneScreenY, ENEMY_HIT_CD, spawnBoom, dropFood, IMG, ctx, drawBar, player, addFloatText, difficulty, WEAPONS, damagePlayer, W, PX_PER_M, spawnSmokeAt, BASE_SPEED, spriteContent, contentSize, EAT_HEAL, ENEMY_SCALE, ORBIT, squashScale */
+/* global game, ENEMY_MAX, assets, H, ENEMY_DIE_TIME, clamp, ROAD, zone, zoneScreenY, ENEMY_HIT_CD, spawnBoom, dropFood, IMG, ctx, drawBar, player, addFloatText, difficulty, WEAPONS, damagePlayer, W, PX_PER_M, spawnSmokeAt, BASE_SPEED, spriteContent, contentSize, EAT_HEAL, ENEMY_SCALE, ORBIT, squashScale, SFX, pace, INITIAL_ENEMIES, GROUND_SCROLL_MUL, ENEMY_AHEAD_RATIO, vehicleDef */
 
 const enemies = [];
 const enemyBullets = []; // 敌方子弹 { x, y, vx, vy, dmg, life }
@@ -10,7 +10,9 @@ let enemyTimer = 1.2;
 
 /* 生成敌方骑手: 'ahead' 从前方出现被玩家超越, 'behind' 从后方超车 */
 function spawnEnemy() {
-  const type = Math.random() < 0.5 ? 'ahead' : 'behind';
+  /* 从上方(前方)出现的比例, 载具可覆盖(如火车头更多) */
+  const aheadRatio = vehicleDef().aheadRatio || ENEMY_AHEAD_RATIO;
+  const type = Math.random() < aheadRatio ? 'ahead' : 'behind';
   const worldSpeed =
     type === 'ahead'
       ? BASE_SPEED * (0.35 + Math.random() * 0.15)
@@ -62,13 +64,28 @@ function spawnEnemy() {
   });
 }
 
+/* 开局生成一批敌人(散布在屏幕内, 营造热闹开局) */
+function spawnInitialEnemies(n) {
+  for (let i = 0; i < n; i++) {
+    spawnEnemy();
+    const e = enemies[enemies.length - 1];
+    e.y = 150 + i * 130;
+    if (e.y > H - 150) e.y = 150 + ((i * 130) % (H - 300));
+  }
+}
+
 function updateEnemies(dt) {
   /* 定时生成; 同屏敌人数上限随难度提升: 3 → 10, 生成间隔随难度缩短(满难度约 0.7~1.6s) */
   enemyTimer -= dt;
-  const cap = ENEMY_MAX + Math.floor(difficulty() * 7);
+  const def = vehicleDef();
+  const cap = ENEMY_MAX + Math.floor(difficulty() * 7) + (def.enemyCapBonus || 0);
   if (!game.over && enemyTimer <= 0 && enemies.length < cap && assets.enemy) {
     spawnEnemy();
-    enemyTimer = (1.8 + Math.random() * 2.2) * (1 - difficulty() * 0.6);
+    /* 节奏提速 + 载具刷新率倍率(如火车头) */
+    enemyTimer =
+      ((1.8 + Math.random() * 2.2) * (1 - difficulty() * 0.6)) /
+      pace() /
+      (def.enemyRate || 1);
   }
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
@@ -84,12 +101,13 @@ function updateEnemies(dt) {
         player.hp = Math.min(player.maxHp, player.hp + EAT_HEAL);
         player.healFlash = 0.4;
         addFloatText(player.x, player.y - player.height / 2, '+' + EAT_HEAL, '#4ade80');
+        SFX.voice('eat', 0.3); // 吃掉敌人: 0.3 倍音量「焖子」
         enemies.splice(i, 1);
       }
       continue;
     }
-    /* 屏幕速度 = 场景速度 - 敌方世界速度: 慢者向后滑, 快者向前超 */
-    e.y += (game.speed - e.worldSpeed + e.kby) * dt;
+    /* 屏幕速度 = 场景速度 - 敌方世界速度(含视觉加速); 慢者向后滑, 快者向前超 */
+    e.y += ((game.speed - e.worldSpeed) * GROUND_SCROLL_MUL + e.kby) * dt;
     if (!e.dying) {
       /* 轻微左右游走, 保持路内 */
       e.x += (Math.sin(game.time * 1.4 + e.wobblePhase) * 42 + e.kbx) * dt;
@@ -142,6 +160,7 @@ function updateEnemies(dt) {
             life: 2.4,
           });
           e.gunCd = rifle ? 0.9 : 1.2;
+          SFX.play('shoot');
         }
       }
 

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>脚步音调音器</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #12151a;
+        color: #d7dde5;
+        font: 14px/1.6 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      .card {
+        width: 420px;
+        background: #161a20;
+        border: 1px solid #2a3038;
+        border-radius: 12px;
+        padding: 20px;
+      }
+      h1 {
+        font-size: 16px;
+        color: #ffd23f;
+        margin-bottom: 14px;
+      }
+      label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 12px 0;
+      }
+      label > span {
+        width: 96px;
+        color: #8b949e;
+        flex-shrink: 0;
+      }
+      input[type='range'] {
+        flex: 1;
+      }
+      .val {
+        width: 52px;
+        text-align: right;
+        color: #ffd23f;
+        font-variant-numeric: tabular-nums;
+      }
+      input[type='file'] {
+        width: 100%;
+        color: #8b949e;
+        font-size: 12px;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      button {
+        flex: 1;
+        background: #21262d;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 10px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      button.primary {
+        background: #3d2f00;
+        border-color: #ffd23f;
+        color: #ffd23f;
+        font-weight: bold;
+      }
+      button.on {
+        background: #0b3d1e;
+        border-color: #4ade80;
+        color: #4ade80;
+      }
+      pre {
+        background: #0e1115;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 10px;
+        white-space: pre-wrap;
+        color: #9cdcfe;
+        margin-top: 14px;
+      }
+      .hint {
+        color: #8b949e;
+        font-size: 12px;
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>脚步音调音器</h1>
+      <p class="hint">默认加载撞击音效。调好音调/音量后点“播放一次”，把下面数值发我。</p>
+      <input id="file" type="file" accept="audio/*" />
+      <label>
+        <span>音调 (rate)</span>
+        <input id="rate" type="range" min="0.2" max="1.5" step="0.01" value="0.45" />
+        <b class="val" id="rateV">0.45</b>
+      </label>
+      <label>
+        <span>音量 (vol)</span>
+        <input id="vol" type="range" min="0" max="1" step="0.01" value="0.15" />
+        <b class="val" id="volV">0.15</b>
+      </label>
+      <label>
+        <span>脚步间隔</span>
+        <input id="gap" type="range" min="0.2" max="1.2" step="0.05" value="0.4" />
+        <b class="val" id="gapV">0.40</b>
+      </label>
+      <div class="row">
+        <button class="primary" id="once">播放一次</button>
+        <button id="loop">循环脚步</button>
+      </div>
+      <pre id="out">音调 0.45 / 音量 0.15</pre>
+    </div>
+    <script>
+      const els = {
+        file: document.getElementById('file'),
+        rate: document.getElementById('rate'),
+        vol: document.getElementById('vol'),
+        gap: document.getElementById('gap'),
+        rateV: document.getElementById('rateV'),
+        volV: document.getElementById('volV'),
+        gapV: document.getElementById('gapV'),
+        once: document.getElementById('once'),
+        loop: document.getElementById('loop'),
+        out: document.getElementById('out'),
+      };
+      const snd = new Audio('../assets/音效/撞击音效.mp3');
+      snd.preload = 'auto';
+      let timer = null;
+      let looping = false;
+
+      els.file.addEventListener('change', (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (f) snd.src = URL.createObjectURL(f);
+      });
+
+      function sync() {
+        els.rateV.textContent = (+els.rate.value).toFixed(2);
+        els.volV.textContent = (+els.vol.value).toFixed(2);
+        els.gapV.textContent = (+els.gap.value).toFixed(2);
+        els.out.textContent =
+          '音调 ' + (+els.rate.value).toFixed(2) + ' / 音量 ' + (+els.vol.value).toFixed(2);
+      }
+      ['rate', 'vol', 'gap'].forEach((k) => els[k].addEventListener('input', sync));
+
+      function playOnce() {
+        try {
+          snd.volume = +els.vol.value;
+          snd.playbackRate = +els.rate.value;
+          snd.currentTime = 0;
+          snd.play().catch(() => {});
+        } catch (_) {}
+      }
+      els.once.addEventListener('click', playOnce);
+
+      els.loop.addEventListener('click', () => {
+        looping = !looping;
+        els.loop.classList.toggle('on', looping);
+        els.loop.textContent = looping ? '停止循环' : '循环脚步';
+        if (looping) {
+          playOnce();
+          timer = setInterval(playOnce, +els.gap.value * 1000);
+        } else {
+          clearInterval(timer);
+          timer = null;
+        }
+      });
+      els.gap.addEventListener('input', () => {
+        if (looping) {
+          clearInterval(timer);
+          timer = setInterval(playOnce, +els.gap.value * 1000);
+        }
+      });
+      sync();
+    </script>
+  </body>
+</html>
