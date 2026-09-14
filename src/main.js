@@ -22,7 +22,7 @@
 
 /* 主循环: update/render + 道路贴图滚动 */
 
-/* global game, player, input, BASE_SPEED, SPEED_MIN, clamp, BOUNDS, vehicleDef, pace, updateSmoke, updateSmokeParticles, updateEnemies, updateEnemyBullets, collide, updateWeapon, updateBoom, updatePickups, updateThrownFood, updateAutoHeal, updateCustomer, updateShop, updateRestaurant, updateZone, updateCrime, updatePolice, updateSpike, updateBoss, spawnSmokeAt, spawnWalkDust, updateDust, updateFloatTexts, updateFoodLag, ctx, dpr, W, H, LOOP, JOY_RADIUS, drawZone, drawSpike, drawSmoke, drawDust, drawCustomer, drawShop, drawRestaurant, drawEnemies, drawEnemyBullets, drawPolice, drawBoss, drawPickups, drawThrownFood, drawBullets, drawOrbitWeapons, drawPlayer, drawWeapon, drawBoom, drawJoy, drawHUD, drawFloatTexts, drawGameOver, drawMenu, drawScreenMsg, drawPause, drawLoading, ready, assets, IMG, TILE_H, GROUND_SCROLL_MUL, screenMsg, checkReady, SFX, nearestThrowTarget, throwMelon, BRAVE_SPEED_MUL, MELON_CD, DASH_SPEED_MUL, TRAIN_DRAIN_BASE, TRAIN_DRAIN_SPEED_REF, TRAIN_DRAIN_TIME_RATE, gameOver */
+/* global game, player, input, BASE_SPEED, SPEED_MIN, clamp, BOUNDS, vehicleDef, pace, softCap, updateSmoke, updateSmokeParticles, updateEnemies, updateEnemyBullets, collide, updateWeapon, updateBoom, updatePickups, updateThrownFood, updateAutoHeal, updateCustomer, updateShop, updateRestaurant, updateZone, updateCrime, updatePolice, updateSpike, updateBoss, spawnSmokeAt, spawnWalkDust, updateDust, updateFloatTexts, updateFoodLag, ctx, dpr, W, H, LOOP, JOY_RADIUS, drawZone, drawSpike, drawSmoke, drawDust, drawCustomer, drawShop, drawRestaurant, drawEnemies, drawEnemyBullets, drawPolice, drawBoss, drawPickups, drawThrownFood, drawBullets, drawOrbitWeapons, drawPlayer, drawWeapon, drawBoom, drawJoy, drawHUD, drawFloatTexts, drawGameOver, drawMenu, drawScreenMsg, drawPause, drawLoading, ready, assets, IMG, TILE_H, GROUND_SCROLL_MUL, screenMsg, checkReady, SFX, nearestThrowTarget, throwMelon, BRAVE_SPEED_MUL, MELON_CD, DASH_SPEED_MUL, TRAIN_DRAIN_BASE, TRAIN_DRAIN_SPEED_REF, TRAIN_DRAIN_TIME_RATE, gameOver */
 
 let footT = 0; // 脚步音计时
 
@@ -83,11 +83,13 @@ function update(dt) {
   const braveMul = player.buff.brave > 0 ? BRAVE_SPEED_MUL : 1;
   const dashMul = player.buff.dash > 0 ? DASH_SPEED_MUL : 1;
   const spdMul = braveMul * dashMul * pace(); // pace: 随里程整体提速
-  const targetSpeed = clamp(
+  let targetSpeed = clamp(
     (def.baseSpeed * spdMul - player.vy * brake) * slowMul + foodPenalty,
     effMin,
     def.maxSpeed * spdMul,
   );
+  /* 速度软上限(如火车头): 超过后仍会增长但逐渐趋缓, 避免 pace 无上限后失控 */
+  if (def.softSpeedCap) targetSpeed = softCap(targetSpeed, def.softSpeedCap);
   game.speed += (targetSpeed - game.speed) * Math.min(1, dt * 3);
 
   /* 场景滚动: 视觉用 scrollSpeed(含加速), 逻辑里程用 game.speed */
@@ -301,6 +303,8 @@ function drawRoadTexture() {
   const off = game.distance % TILE_H; // 已含视觉加速(无缝循环)
   for (let y = -TILE_H + off; y < H; y += TILE_H) {
     ctx.drawImage(IMG.road, x, y, tileW, TILE_H);
+    /* 底边补 1px(取贴图顶部一行): 消除相邻瓦片间的亚像素缝隙 */
+    ctx.drawImage(IMG.road, 0, 0, iw, 1, x, y + TILE_H - 1, tileW, 1);
   }
 }
 

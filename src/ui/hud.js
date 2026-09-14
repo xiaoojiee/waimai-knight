@@ -2,14 +2,17 @@
 
 /* 界面绘制: HUD(血量/外卖/速度/犯罪条)/虚拟摇杆/游戏结束界面 */
 
-/* global ctx, fillRR, rr, W, H, player, game, PX_PER_M, BASE_SPEED, IMG, assets, WEAPONS, nearestCustomer, nextCustomerDist, input, JOY_RADIUS, clamp, VEHICLES, drawFoodItem, drawFoodGlow, oldestNonSpecialIndex, screenMsg, loadProgress, SFX, BRAVE_TIME, MELON_TIME, EAT_TIME, DASH_TIME, vehicleDef, boss, Toy, rankState, isVehicleUnlocked, vehicleUnlockHint, AUTHOR_NAME, VIDEO_TITLE */
+/* global ctx, fillRR, rr, W, H, player, game, PX_PER_M, BASE_SPEED, IMG, assets, WEAPONS, HEAL_AMT, nearestCustomer, nextCustomerDist, input, JOY_RADIUS, clamp, VEHICLES, drawFoodItem, drawFoodGlow, oldestNonSpecialIndex, screenMsg, loadProgress, SFX, BRAVE_TIME, MELON_TIME, EAT_TIME, DASH_TIME, vehicleDef, boss, Toy, rankState, isVehicleUnlocked, vehicleUnlockHint, AUTHOR_NAME, VIDEO_TITLE */
 
 /* 投掷外卖按钮(右下角水泥路面, 方便手机拇指操作; drawHUD 绘制, input.js pointerdown 共用) */
 const throwBtn = { x: 322, y: H - 62, w: 146, h: 54 };
 
-/* 暂停 / 音量 按钮(游戏内顶部中央; input.js pointerdown 共用) */
-const pauseBtn = { x: 220, y: 14, w: 34, h: 34 };
-const soundBtn = { x: 260, y: 14, w: 34, h: 34 };
+/* 吃外卖/冲刺按钮(投掷按钮上方; 触屏点按, 电脑也可用空格键) */
+const eatBtn = { x: 322, y: H - 132, w: 146, h: 64 };
+
+/* 暂停 / 音量 按钮(游戏内顶部中央竖排, 放大到 50×50 便于触屏; input.js pointerdown 共用) */
+const pauseBtn = { x: 224, y: 12, w: 50, h: 50 };
+const soundBtn = { x: 224, y: 66, w: 50, h: 50 };
 
 /* 暂停界面「返回开始界面」按钮(input.js pointerdown 共用) */
 const pauseHomeBtn = { x: W / 2 - 90, y: H * 0.44 + 84, w: 180, h: 52 };
@@ -151,7 +154,7 @@ function drawMenuMain() {
   /* 操作提示 */
   ctx.fillStyle = '#5a4a00';
   ctx.font = "12px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('电脑: 方向键/WASD · 手机: 下半屏滑动', W / 2, H * 0.86);
+  ctx.fillText('电脑: WASD/方向键 · 空格吃外卖 · 手机: 下半屏滑动', W / 2, H * 0.86);
 }
 
 /* 出行方式选择界面: 左侧卡片列表 + 右侧 UP 入口 + 返回 */
@@ -522,32 +525,34 @@ function drawHUD() {
   drawBuffs();
 
   /* 暂停 / 音量 按钮 */
-  fillRR(pauseBtn.x, pauseBtn.y, pauseBtn.w, pauseBtn.h, 8, 'rgba(10,12,15,0.55)');
+  fillRR(pauseBtn.x, pauseBtn.y, pauseBtn.w, pauseBtn.h, 10, 'rgba(10,12,15,0.55)');
   ctx.fillStyle = '#e6e9ed';
+  const pcx = pauseBtn.x + pauseBtn.w / 2;
+  const pcy = pauseBtn.y + pauseBtn.h / 2;
   if (game.paused) {
     /* 播放三角 */
     ctx.beginPath();
-    ctx.moveTo(pauseBtn.x + 12, pauseBtn.y + 10);
-    ctx.lineTo(pauseBtn.x + 12, pauseBtn.y + 24);
-    ctx.lineTo(pauseBtn.x + 25, pauseBtn.y + 17);
+    ctx.moveTo(pcx - 7, pcy - 12);
+    ctx.lineTo(pcx - 7, pcy + 12);
+    ctx.lineTo(pcx + 11, pcy);
     ctx.closePath();
     ctx.fill();
   } else {
     /* 暂停双竖线 */
-    ctx.fillRect(pauseBtn.x + 12, pauseBtn.y + 10, 4, 14);
-    ctx.fillRect(pauseBtn.x + 19, pauseBtn.y + 10, 4, 14);
+    ctx.fillRect(pcx - 9, pcy - 12, 7, 24);
+    ctx.fillRect(pcx + 2, pcy - 12, 7, 24);
   }
-  pressDark(pauseBtn, 8);
-  fillRR(soundBtn.x, soundBtn.y, soundBtn.w, soundBtn.h, 8, 'rgba(10,12,15,0.55)');
+  pressDark(pauseBtn, 10);
+  fillRR(soundBtn.x, soundBtn.y, soundBtn.w, soundBtn.h, 10, 'rgba(10,12,15,0.55)');
   const vol = SFX.getVolume();
   ctx.fillStyle = vol <= 0 ? '#8a929c' : '#e6e9ed';
-  ctx.font = "14px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.font = "18px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.textAlign = 'center';
-  ctx.fillText(vol <= 0 ? '🔇' : '🔊', soundBtn.x + soundBtn.w / 2, soundBtn.y + 22);
+  ctx.fillText(vol <= 0 ? '🔇' : '🔊', soundBtn.x + soundBtn.w / 2, soundBtn.y + 24);
   ctx.fillStyle = '#9aa3ad';
-  ctx.font = "9px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText(Math.round(vol * 100) + '%', soundBtn.x + soundBtn.w / 2, soundBtn.y + 31);
-  pressDark(soundBtn, 8);
+  ctx.font = "11px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText(Math.round(vol * 100) + '%', soundBtn.x + soundBtn.w / 2, soundBtn.y + 42);
+  pressDark(soundBtn, 10);
   ctx.textAlign = 'left';
 
   /* 右上: 当前速度 + 已行驶里程 */
@@ -563,18 +568,63 @@ function drawHUD() {
   ctx.fillText('已行驶 ' + (game.totalDist / PX_PER_M / 1000).toFixed(2) + ' km', W - 24, 62);
 
 
-  /* 投掷按钮(消耗最下方非特殊外卖, 自动锁定敌人) */
+  /* 吃外卖按钮(牛来 = 主动冲刺; 电脑也可用空格) */
+  const eatIdx = oldestNonSpecialIndex();
+  const eatItem = eatIdx >= 0 ? player.food[eatIdx] : null;
+  const isCow = !!vehicleDef().dashOnEat;
+  const eatCan = !!eatItem && (isCow || player.hp < player.maxHp);
+  const eatPoison = !!(eatItem && eatItem.poison);
+  const eatRgb = isCow ? '255,210,63' : '74,222,128';
+  fillRR(
+    eatBtn.x,
+    eatBtn.y,
+    eatBtn.w,
+    eatBtn.h,
+    14,
+    eatCan ? 'rgba(' + eatRgb + ',0.16)' : 'rgba(255,255,255,0.05)',
+  );
+  ctx.strokeStyle = eatCan ? 'rgba(' + eatRgb + ',0.65)' : 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1;
+  rr(eatBtn.x, eatBtn.y, eatBtn.w, eatBtn.h, 14);
+  ctx.stroke();
+  if (eatItem) {
+    ctx.save();
+    ctx.translate(eatBtn.x + 32, eatBtn.y + 32);
+    if (eatPoison || eatItem.special >= 0) drawFoodGlow(eatItem, 40);
+    drawFoodItem(eatItem, 40);
+    ctx.restore();
+  }
+  ctx.textAlign = 'left';
+  ctx.fillStyle = eatCan ? (isCow ? '#ffd23f' : '#4ade80') : '#8a929c';
+  ctx.font = "bold 20px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText(isCow ? '冲刺' : '吃外卖', eatBtn.x + 64, eatBtn.y + 32);
+  ctx.fillStyle = eatCan ? (isCow ? '#ffe08a' : '#9aa3ad') : '#6a727c';
+  ctx.font = "11px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText(
+    isCow
+      ? '消耗外卖加速'
+      : eatPoison
+        ? '有毒!'
+        : '+' + Math.round(HEAL_AMT * (vehicleDef().healMul || 1)) + ' HP',
+    eatBtn.x + 64,
+    eatBtn.y + 50,
+  );
+  pressDark(eatBtn, 14);
+
+  /* 投掷按钮(消耗最下方非特殊外卖, 自动锁定敌人; 有毒=绿色 / 无毒=黄色 区分) */
   const throwIdx = oldestNonSpecialIndex();
   const canThrow = throwIdx >= 0;
+  const throwPoison = canThrow && player.food[throwIdx].poison;
+  const throwRgb = throwPoison ? '74,222,128' : '255,210,63';
   fillRR(
     throwBtn.x,
     throwBtn.y,
     throwBtn.w,
     throwBtn.h,
     14,
-    canThrow ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)',
+    canThrow ? 'rgba(' + throwRgb + ',0.16)' : 'rgba(255,255,255,0.05)',
   );
-  ctx.strokeStyle = canThrow ? 'rgba(74,222,128,0.5)' : 'rgba(255,255,255,0.12)';
+  ctx.strokeStyle = canThrow ? 'rgba(' + throwRgb + ',0.65)' : 'rgba(255,255,255,0.12)';
   ctx.lineWidth = 1;
   rr(throwBtn.x, throwBtn.y, throwBtn.w, throwBtn.h, 14);
   ctx.stroke();
@@ -587,24 +637,24 @@ function drawHUD() {
     ctx.restore();
   }
   ctx.textAlign = 'left';
-  ctx.fillStyle = canThrow ? '#4ade80' : '#8a929c';
+  ctx.fillStyle = canThrow ? (throwPoison ? '#4ade80' : '#ffd23f') : '#8a929c';
   ctx.font = "bold 20px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.fillText('投掷', throwBtn.x + 62, throwBtn.y + 26);
-  ctx.fillStyle = canThrow ? '#c7cdd4' : '#6a727c';
+  ctx.fillStyle = canThrow ? (throwPoison ? '#7fe0a0' : '#ffe08a') : '#6a727c';
   ctx.font = "11px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('锁定敌人', throwBtn.x + 62, throwBtn.y + 44);
+  ctx.fillText(throwPoison ? '有毒' : '锁定敌人', throwBtn.x + 62, throwBtn.y + 44);
   pressDark(throwBtn, 14);
 
-  /* 装备状态(投掷按钮上方, 可同时显示多种道具) */
+  /* 装备状态(吃外卖按钮上方, 可同时显示多种道具) */
   const heldTypes = ['dagger', 'pistol', 'rifle', 'shield'].filter((t) => player.weapons[t]);
   if (heldTypes.length > 0) {
-    fillRR(throwBtn.x, throwBtn.y - 60, throwBtn.w, 48, 12, 'rgba(10,12,15,0.55)');
+    fillRR(eatBtn.x, eatBtn.y - 60, eatBtn.w, 48, 12, 'rgba(10,12,15,0.55)');
     if (assets.item) {
       const fw = IMG.item.naturalWidth / 2;
       const fh = IMG.item.naturalHeight / 2;
       heldTypes.forEach((type, idx) => {
         const def = WEAPONS[type];
-        const ix = throwBtn.x + 6 + idx * 34;
+        const ix = eatBtn.x + 6 + idx * 34;
         ctx.drawImage(
           IMG.item,
           def.frame[0] * fw + 2,
@@ -612,14 +662,14 @@ function drawHUD() {
           fw - 4,
           fh - 4,
           ix,
-          throwBtn.y - 52,
+          eatBtn.y - 52,
           26,
           26,
         );
         ctx.textAlign = 'left';
         ctx.fillStyle = '#e6e9ed';
         ctx.font = "bold 11px 'PingFang SC','Microsoft YaHei',sans-serif";
-        ctx.fillText('×' + player.weapons[type].ammo, ix + 27, throwBtn.y - 30);
+        ctx.fillText('×' + player.weapons[type].ammo, ix + 27, eatBtn.y - 30);
       });
     }
   }

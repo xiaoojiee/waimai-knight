@@ -59,7 +59,7 @@ function updateZone(dt) {
     nextZoneDist =
       game.totalDist +
       (ZONE_INTERVAL_MIN_M + Math.random() * (ZONE_INTERVAL_MAX_M - ZONE_INTERVAL_MIN_M)) *
-        (1 - difficulty() * 0.8) *
+        Math.max(0.2, 1 - difficulty() * 0.8) *
         PX_PER_M;
     return;
   }

@@ -32,8 +32,7 @@ const INITIAL_ENEMIES = 4; // 开局生成的敌人数量
 
 /* ===== 节奏(加快游戏) ===== */
 const DIFFICULTY_FULL_M = 2000; // 满难度里程(米), 越小难度爬升越快
-const PACE_PER_KM = 0.15; // 每公里场景提速比例
-const PACE_MAX = 0.4; // 场景提速上限(+40%)
+const PACE_PER_KM = 0.15; // 每公里场景提速比例(不设上限, 已解除 +40% 限制)
 const ENEMY_SCALE = 1.3; // 敌方骑手贴图放大倍数
 const HEAL_AMT = 25; // 点击外卖按钮回复的血量
 const AUTO_HEAL_THRESHOLD = 0.4; // 血量低于该比例时自动吃外卖
@@ -298,6 +297,7 @@ const VEHICLES = {
     aheadRatio: 0.85, // 更多敌人从上方来
     enemyRate: 1.8, // 敌人刷新率倍率(间隔 ÷ 该值)
     enemyCapBonus: 3, // 同屏敌人数上限加成
+    softSpeedCap: 1200, // 速度软上限(px/s): 超过后增长趋缓(渐近 2400), 避免 pace 无上限后失控
   },
 };
 
@@ -331,6 +331,8 @@ const BOSS_INTERVAL_MIN_M = 400; // 大运间隔下限(米)
 const BOSS_INTERVAL_MAX_M = 700; // 大运间隔上限(米)
 const BOSS_SPAWN_CHANCE = 0.6; // 到达阈值时的生成概率
 const BOSS_MONEY = 300; // 击败掉落金钱
+/* 大运数值随里程提升(无上限): 每 1 点难度(2000m) 血量/伤害/奖励 +100% */
+const BOSS_SCALE_PER_DIFF = 1;
 
 /* ===== UP 主信息 / 开发视频(载具选择页右侧展示) ===== */
 const AUTHOR_NAME = '火山哥哥'; // UP 主昵称(展示用)

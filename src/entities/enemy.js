@@ -20,7 +20,7 @@ function spawnEnemy() {
   /* 随机装备武器: 前 200 米不出现; 之后难度越高概率越高(10%→60%), 敌人只能携带 1 个装备 */
   const d = difficulty();
   let weapons = [];
-  if (game.totalDist >= 200 * PX_PER_M && Math.random() < 0.1 + d * 0.5) {
+  if (game.totalDist >= 200 * PX_PER_M && Math.random() < Math.min(0.9, 0.1 + d * 0.5)) {
     const types = ['dagger', 'pistol', 'rifle', 'shield'];
     weapons.push(types[Math.floor(Math.random() * types.length)]);
   }
@@ -75,15 +75,15 @@ function spawnInitialEnemies(n) {
 }
 
 function updateEnemies(dt) {
-  /* 定时生成; 同屏敌人数上限随难度提升: 3 → 10, 生成间隔随难度缩短(满难度约 0.7~1.6s) */
+  /* 定时生成; 同屏敌人数上限随难度提升: 3 → 15(上限), 生成间隔随难度缩短(下限 0.2 倍) */
   enemyTimer -= dt;
   const def = vehicleDef();
-  const cap = ENEMY_MAX + Math.floor(difficulty() * 7) + (def.enemyCapBonus || 0);
+  const cap = ENEMY_MAX + Math.min(12, Math.floor(difficulty() * 7)) + (def.enemyCapBonus || 0);
   if (!game.over && enemyTimer <= 0 && enemies.length < cap && assets.enemy) {
     spawnEnemy();
     /* 节奏提速 + 载具刷新率倍率(如火车头) */
     enemyTimer =
-      ((1.8 + Math.random() * 2.2) * (1 - difficulty() * 0.6)) /
+      ((1.8 + Math.random() * 2.2) * Math.max(0.2, 1 - difficulty() * 0.6)) /
       pace() /
       (def.enemyRate || 1);
   }

@@ -2,7 +2,7 @@
 
 /* 输入: 键盘(WASD/方向键)+ 手机虚拟摇杆 + 外卖按钮点击 */
 
-/* global canvas, input, W, H, game, startBtn, vehicleBtns, vehicleOpenBtn, vehicleBackBtn, resetGame, adjustCrime, grantWeapon, player, addFloatText, PX_PER_M, makeFood, makeSpecialFood, applySpecialEffect, VEHICLES, applyVehicle, throwBtn, throwFood, ready, SFX, pauseBtn, soundBtn, pauseHomeBtn, spawnInitialEnemies, INITIAL_ENEMIES, spawnBoss, rankOpenBtn, rankRefreshBtn, mockBtns, markPress, Toy, refreshUnlocks, isVehicleUnlocked, loadRank, vehicleHomeBtn, vehicleVideoBtn */
+/* global canvas, input, W, H, game, startBtn, vehicleBtns, vehicleOpenBtn, vehicleBackBtn, resetGame, adjustCrime, grantWeapon, player, addFloatText, PX_PER_M, makeFood, makeSpecialFood, applySpecialEffect, VEHICLES, applyVehicle, eatBtn, throwBtn, throwFood, activeEat, ready, SFX, pauseBtn, soundBtn, pauseHomeBtn, spawnInitialEnemies, INITIAL_ENEMIES, spawnBoss, rankOpenBtn, rankRefreshBtn, mockBtns, markPress, Toy, refreshUnlocks, isVehicleUnlocked, loadRank, vehicleHomeBtn, vehicleVideoBtn */
 
 const KEYMAP = {
   ArrowLeft: 'left',
@@ -40,6 +40,12 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && game.started && !game.over) {
     e.preventDefault();
     game.paused = !game.paused;
+    return;
+  }
+  /* 空格: 主动食用外卖(牛来会触发冲刺) */
+  if (e.code === 'Space') {
+    e.preventDefault();
+    activeEat();
     return;
   }
   const k = KEYMAP[e.code];
@@ -263,6 +269,12 @@ canvas.addEventListener('pointerdown', (e) => {
       resetGame();
       game.started = false; // 退回开始界面
     }
+    return;
+  }
+  /* 点击吃外卖按钮 → 食用(牛来触发冲刺) */
+  if (hitBtn(eatBtn)) {
+    markPress(eatBtn);
+    activeEat();
     return;
   }
   /* 点击投掷按钮 → 丢出外卖锁定敌人 */

@@ -67,7 +67,7 @@ function scheduleShop() {
   const d = difficulty();
   const m =
     (SHOP_INTERVAL_MIN_M + Math.random() * (SHOP_INTERVAL_MAX_M - SHOP_INTERVAL_MIN_M)) *
-    (1 - d * 0.65);
+    Math.max(0.25, 1 - d * 0.65);
   nextShopDist = game.totalDist + m * PX_PER_M;
 }
 function updateShop(dt) {
@@ -175,7 +175,7 @@ function scheduleRestaurant() {
   const d = difficulty();
   const m =
     (REST_INTERVAL_MIN_M + Math.random() * (REST_INTERVAL_MAX_M - REST_INTERVAL_MIN_M)) *
-    (1 - d * 0.6);
+    Math.max(0.25, 1 - d * 0.6);
   nextRestDist = game.totalDist + m * PX_PER_M;
 }
 function updateRestaurant(dt) {

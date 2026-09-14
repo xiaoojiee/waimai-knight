@@ -60,7 +60,7 @@ function updatePickups(dt) {
   roadFoodTimer -= dt;
   if (roadFoodTimer <= 0 && !game.over) {
     spawnRoadFood();
-    roadFoodTimer = (4 + Math.random() * 5) * (1 - difficulty() * 0.4);
+    roadFoodTimer = (4 + Math.random() * 5) * Math.max(0.3, 1 - difficulty() * 0.4);
   }
   for (let i = pickups.length - 1; i >= 0; i--) {
     const f = pickups[i];
@@ -123,13 +123,20 @@ function updateAutoHeal(dt) {
   }
 }
 
-/* 点击外卖按钮: 消耗最下方(最早捡的)非特殊外卖; 有毒则扣血 */
-function useFood() {
+/* 主动食用(空格键): dashOnEat 载具(牛来)允许满血吃以触发冲刺 */
+function activeEat() {
+  if (!game.started || game.paused || game.over) return;
+  useFood(!!vehicleDef().dashOnEat);
+}
+
+/* 食用最下方(最早捡的)非特殊外卖; 有毒则扣血
+ * force = true 时满血也吃(用于牛来主动触发冲刺) */
+function useFood(force) {
   if (player.food.length <= 0 || game.over) return;
   const i = oldestNonSpecialIndex();
   if (i < 0) return;
   const item = player.food[i];
-  if (!item.poison && player.hp >= player.maxHp) return; // 满血不吃普通外卖, 避免浪费
+  if (!item.poison && !force && player.hp >= player.maxHp) return; // 满血不吃普通外卖, 避免浪费
   player.food.splice(i, 1);
   if (item.poison) {
     player.hp = Math.max(0, player.hp - POISON_HP);

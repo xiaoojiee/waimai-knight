@@ -3,9 +3,9 @@
 /* 逆行大运 Boss: 迎面驶来 + 左右变道; 玩家撞击磨血, 引警车撞爆发伤害;
  * 存活时限内未击败则向下方开走; 击败掉落金钱与外卖(外卖量按玩家受伤推算) */
 
-/* global game, assets, IMG, PX_PER_M, player, police, enemies, pickups, ctx, fillRR, H, W, ROAD, clamp, addFloatText, damagePlayer, spawnBoom, makeFood, launchEnemy, dropFood, HEAL_AMT, DMG_FRONT, BOSS_HP, BOSS_RAM_DMG, BOSS_RAM_CD, BOSS_POLICE_DMG, BOSS_SIZE, BOSS_DEFAULT_Y, BOSS_LANE_INTERVAL_MIN, BOSS_LANE_INTERVAL_MAX, BOSS_LANE_SPEED, BOSS_CHARGE_INTERVAL_MIN, BOSS_CHARGE_INTERVAL_MAX, BOSS_CHARGE_SPEED, BOSS_TIME, BOSS_DELAY_FIRST_M, BOSS_INTERVAL_MIN_M, BOSS_INTERVAL_MAX_M, BOSS_SPAWN_CHANCE, BOSS_MONEY, contentSize, detectSpriteBox */
+/* global game, assets, IMG, PX_PER_M, player, police, enemies, pickups, ctx, fillRR, H, W, ROAD, clamp, addFloatText, damagePlayer, spawnBoom, makeFood, launchEnemy, dropFood, HEAL_AMT, DMG_FRONT, BOSS_HP, BOSS_RAM_DMG, BOSS_RAM_CD, BOSS_POLICE_DMG, BOSS_SIZE, BOSS_DEFAULT_Y, BOSS_LANE_INTERVAL_MIN, BOSS_LANE_INTERVAL_MAX, BOSS_LANE_SPEED, BOSS_CHARGE_INTERVAL_MIN, BOSS_CHARGE_INTERVAL_MAX, BOSS_CHARGE_SPEED, BOSS_TIME, BOSS_DELAY_FIRST_M, BOSS_INTERVAL_MIN_M, BOSS_INTERVAL_MAX_M, BOSS_SPAWN_CHANCE, BOSS_MONEY, BOSS_SCALE_PER_DIFF, difficulty, contentSize, detectSpriteBox */
 
-let boss = null; // { x, y, hp, maxHp, lane, laneTimer, state, time, flash, ramCd, dmgTaken }
+let boss = null; // { x, y, hp, maxHp, scale, lane, laneTimer, state, time, flash, ramCd, dmgTaken }
 let nextBossDist = BOSS_DELAY_FIRST_M * PX_PER_M;
 let TRUCK_BOX = null; // 大运贴图内容包围盒
 
@@ -28,13 +28,19 @@ function scheduleBoss() {
   nextBossDist =
     game.totalDist + rand(BOSS_INTERVAL_MIN_M, BOSS_INTERVAL_MAX_M) * PX_PER_M;
 }
+/* Boss 强度系数: 随里程无上限提升(每 1 点难度 +BOSS_SCALE_PER_DIFF) */
+function bossScale() {
+  return 1 + difficulty() * BOSS_SCALE_PER_DIFF;
+}
 function spawnBoss() {
   const lane = Math.random() < 0.5 ? 0 : 1;
+  const s = bossScale(); // 里程越远, 血量/伤害/奖励越高
   boss = {
     x: laneCenter(lane),
     y: BOSS_DEFAULT_Y - 260, // 从上方降下到默认位置
-    hp: BOSS_HP,
-    maxHp: BOSS_HP,
+    scale: s,
+    hp: Math.round(BOSS_HP * s),
+    maxHp: Math.round(BOSS_HP * s),
     lane,
     laneTimer: rand(BOSS_LANE_INTERVAL_MIN, BOSS_LANE_INTERVAL_MAX),
     state: 'hover', // hover 悬停 / surge 前冲 / retreat 退回 / escape 逃逸
@@ -52,8 +58,9 @@ function killBoss() {
     spawnBoom(b.x + (Math.random() - 0.5) * 90, b.y + (Math.random() - 0.5) * 90);
   }
   game.shake = 0.8;
-  player.money += BOSS_MONEY;
-  addFloatText(b.x, b.y, '+' + BOSS_MONEY, '#ffd23f');
+  const money = Math.round(BOSS_MONEY * b.scale); // 奖励随强度同步提升
+  player.money += money;
+  addFloatText(b.x, b.y, '+' + money, '#ffd23f');
   /* 外卖掉落: 覆盖玩家本次受伤所需回血量 */
   const n = clamp(Math.ceil(b.dmgTaken / HEAL_AMT) || 4, 4, 24);
   for (let i = 0; i < n; i++) {
@@ -158,8 +165,9 @@ function updateBoss(dt) {
       const d = Math.hypot(dx, dy) || 1;
       player.kbx = (dx / d) * 760;
       player.kby = (dy / d) * 900;
-      damagePlayer(DMG_FRONT);
-      b.dmgTaken += DMG_FRONT;
+      const dmg = DMG_FRONT * b.scale; // 里程越远, 撞大运越疼
+      damagePlayer(dmg);
+      b.dmgTaken += dmg;
     }
     if (b.ramCd <= 0) {
       b.ramCd = BOSS_RAM_CD;

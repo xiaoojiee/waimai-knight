@@ -33,8 +33,11 @@
         -webkit-tap-highlight-color: transparent;
       }
       canvas {
-        /* 保持 480:800 逻辑比例, 同时兼容横竖屏 */
-        width: min(100vw, 60vh);
+        /* 保持 480:800 逻辑比例, 同时兼容横竖屏; 扣除刘海/安全区, 避免内容被遮挡 */
+        width: min(
+          calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)),
+          calc(60vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))
+        );
         aspect-ratio: 3 / 5;
         background: #171a1d;
         border-radius: 6px;

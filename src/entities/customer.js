@@ -27,8 +27,8 @@ function rollDemand() {
   const lvl = Math.min(4, Math.floor(km / 0.5)); // 每 500 米一档
   const max = 4 + lvl; // 需求上限 4 → 8
   const min = Math.min(1 + Math.floor(lvl / 2), max - 1); // 需求下限 1 → 3
-  /* 难度越高需求越大: 满难度时额外 +0~3 个 */
-  const extra = Math.floor(difficulty() * 4 * Math.random());
+  /* 难度越高需求越大: 额外 +0~3 个(封顶, 避免难度无上限后需求爆炸) */
+  const extra = Math.min(3, Math.floor(difficulty() * 4 * Math.random()));
   return min + Math.floor(Math.random() * (max - min + 1)) + extra;
 }
 
@@ -119,7 +119,7 @@ function applySpecialEffect(foodIdx) {
 function updateCustomer(dt) {
   /* 到达距离阈值: 概率生成(可同时存在多个), 然后调度下一个 */
   if (!game.over && assets.customer && game.totalDist >= nextCustomerDist) {
-    if (Math.random() < CUSTOMER_SPAWN_CHANCE + difficulty() * 0.3) spawnCustomer();
+    if (Math.random() < Math.min(1, CUSTOMER_SPAWN_CHANCE + difficulty() * 0.3)) spawnCustomer();
     scheduleCustomer();
   }
   for (let i = customers.length - 1; i >= 0; i--) {
@@ -170,7 +170,7 @@ function scheduleCustomer() {
   /* 难度越高客户越频繁(间隔最多缩短 50%) */
   const m =
     (CUSTOMER_INTERVAL_MIN_M + Math.random() * (CUSTOMER_INTERVAL_MAX_M - CUSTOMER_INTERVAL_MIN_M)) *
-    (1 - difficulty() * 0.5);
+    Math.max(0.3, 1 - difficulty() * 0.5);
   nextCustomerDist = game.totalDist + m * PX_PER_M;
 }
 
