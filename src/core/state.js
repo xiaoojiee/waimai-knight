@@ -15,7 +15,7 @@ const game = {
   overReason: '', // 结束原因: hp(受伤) / bankrupt(破产)
   shake: 0, // 受击屏幕震动计时
   paused: false, // 是否暂停
-  menuScreen: 'main', // 开始界面层级: main 主菜单 | vehicle 载具选择 | rank 排行榜 | gift 互动奖励
+  menuScreen: 'main', // 开始界面层级: main 主菜单 | vehicle 载具选择 | rank 排行榜
   testMode: false, // 测试模式: 连续输入作弊码 hsgg 开关, 开启后测试按键才生效
 };
 

@@ -42,6 +42,7 @@ function spawnBoss() {
     time: 0,
     flash: 0,
     ramCd: 0,
+    wcd: 0, // 武器受击冷却(匕首连续命中限频)
     dmgTaken: 0, // 玩家在本次 Boss 战中累计受到的伤害(用于计算外卖掉落)
   };
 }
@@ -68,6 +69,19 @@ function killBoss() {
   }
   boss = null;
   scheduleBoss();
+}
+
+/* 武器/子弹对 Boss 造成伤害(通用入口) */
+function damageBoss(dmg, x, y) {
+  if (!boss) return false;
+  boss.hp = Math.max(0, boss.hp - dmg);
+  boss.flash = 0.15;
+  spawnBoom(x != null ? x : boss.x, y != null ? y : boss.y);
+  if (boss.hp <= 0) {
+    killBoss();
+    return true;
+  }
+  return false;
 }
 
 /* 车头判定框(比整张贴图小, 只取露出的车头部分) */
@@ -97,6 +111,7 @@ function updateBoss(dt) {
   b.time += dt;
   if (b.flash > 0) b.flash -= dt;
   if (b.ramCd > 0) b.ramCd -= dt;
+  if (b.wcd > 0) b.wcd -= dt;
 
   /* 变道(随机左右车道) */
   b.laneTimer -= dt;

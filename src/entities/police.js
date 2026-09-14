@@ -2,7 +2,7 @@
 
 /* 犯罪等级 / 警车追击 / 拦车钉(路钉) */
 
-/* global player, clamp, ROAD, game, addFloatText, H, damagePlayer, spawnBoom, enemies, dropFood, WEAPONS, zoneScreenY, ctx, fillRR, IMG, assets, crimeCool:writable, launchEnemy, CRIME_MAX_LVL, contentSize, CRIME_OVER_RATE, BOUNDS, detectSpriteBox */
+/* global player, clamp, ROAD, game, boss, bossHit, addFloatText, H, damagePlayer, spawnBoom, enemies, dropFood, WEAPONS, zoneScreenY, ctx, fillRR, IMG, assets, crimeCool:writable, launchEnemy, CRIME_MAX_LVL, contentSize, CRIME_OVER_RATE, BOUNDS, detectSpriteBox */
 
 /* 等级: 1 小罪无碍 / 2 略有影响 / 3 大型事故 / 4 重大影响(犯罪槽攒满逐级提升) */
 function crimeLevel() {
@@ -75,6 +75,15 @@ function updatePolice(dt) {
   for (const p of police) {
     /* 跟踪位置: 屏幕最下方 */
     const trackY = H - 90;
+    const laneX0 = p.lane === 0 ? ROAD.left : ROAD.left + ROAD.width / 2;
+    const laneX1 = laneX0 + ROAD.width / 2;
+    /* 主动撞 Boss: 只有同车道的警车能撞到(前提是能撞到); 否则照常追玩家 */
+    const bossTarget = boss && !game.over && p.lane === boss.lane;
+    /* 冲撞目标: 追玩家→冲到玩家附近; 撞 Boss→冲到 Boss 车头; 横向也对准目标 */
+    const aimY = bossTarget ? bossHit().y - 60 : player.y + 50;
+    const aimX = bossTarget
+      ? clamp(boss.x, laneX0 + 34, laneX1 - 34)
+      : clamp(player.x, laneX0 + 34, laneX1 - 34);
     if (p.state === 'track') {
       p.cycleT -= dt;
       p.y += (trackY - p.y) * Math.min(1, dt * 4); // 平滑保持在下方
@@ -87,7 +96,7 @@ function updatePolice(dt) {
       }
     } else if (p.state === 'surge') {
       p.y -= 520 * dt; // 间歇性往前撞
-      if (p.y <= player.y + 50) p.state = 'retreat'; // 冲到玩家附近就退回
+      if (p.y <= aimY) p.state = 'retreat'; // 冲到目标附近就退回(撞 Boss 由 updateBoss 结算伤害)
     } else {
       /* retreat: 回到下方跟踪位 */
       p.y += 300 * dt;
@@ -96,10 +105,8 @@ function updatePolice(dt) {
         p.cycleT = Math.max(0.15, (1.5 + Math.random() * 2.5) / crimeEscalation());
       }
     }
-    /* 横向跟踪玩家(较弱, 便于侧向躲开; 保持在本车道内) */
-    const laneX0 = p.lane === 0 ? ROAD.left : ROAD.left + ROAD.width / 2;
-    const laneX1 = laneX0 + ROAD.width / 2;
-    p.x += (clamp(player.x, laneX0 + 34, laneX1 - 34) - p.x) * Math.min(1, dt * 0.7);
+    /* 横向对准目标(较弱, 便于侧向躲开; 保持在本车道内) */
+    p.x += (aimX - p.x) * Math.min(1, dt * 0.7);
 
     /* 与玩家重叠: 每帧推出(避免卡住), 受击无敌外再结算伤害/弹开 */
     {

@@ -38,11 +38,14 @@ function updateFly(b, dt) {
   b.rot += b.spin * dt;
   return b.life > 0.95;
 }
-/* 错开生成位置: 顶部已有建筑时往下排 */
-function staggerY(list, base) {
+const BUILD_GAP = 200; // 建筑纵向最小间距(> 绘制尺寸 160, 避免贴图重叠)
+
+/* 错开生成位置: 店铺与饭店统一计算, 顶部已有建筑时往上排,
+ * 避免「店铺与店铺」「店铺与饭店」之间互相重叠 */
+function staggerY(base) {
   let n = 0;
-  for (const b of list) if (b.y < base + 260) n++;
-  return base - n * 150;
+  for (const b of shops.concat(restaurants)) if (b.y < base + 300) n++;
+  return base - n * BUILD_GAP;
 }
 
 function spawnShop() {
@@ -50,7 +53,7 @@ function spawnShop() {
   shops.push({
     type: types[Math.floor(Math.random() * types.length)],
     x: CEMENT_X + (W - CEMENT_X) / 2,
-    y: staggerY(shops, -60),
+    y: staggerY(-60),
     fly: false,
     vx: 0,
     vy: 0,
@@ -158,7 +161,7 @@ let nextRestDist = REST_DELAY_FIRST_M * PX_PER_M; // 下一个饭店出现的距
 function spawnRestaurant() {
   restaurants.push({
     x: CEMENT_X + (W - CEMENT_X) / 2,
-    y: staggerY(restaurants, -60),
+    y: staggerY(-60),
     fly: false,
     vx: 0,
     vy: 0,

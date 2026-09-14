@@ -2,7 +2,7 @@
 
 /* 输入: 键盘(WASD/方向键)+ 手机虚拟摇杆 + 外卖按钮点击 */
 
-/* global canvas, input, W, H, game, foodBtn, startBtn, vehicleBtns, vehicleOpenBtn, vehicleBackBtn, useFood, resetGame, adjustCrime, grantWeapon, player, addFloatText, PX_PER_M, makeFood, makeSpecialFood, applySpecialEffect, VEHICLES, applyVehicle, throwBtn, throwFood, ready, SFX, pauseBtn, soundBtn, pauseHomeBtn, spawnInitialEnemies, INITIAL_ENEMIES, spawnBoss, rankOpenBtn, rankRefreshBtn, mockBtns, markPress, Toy, refreshUnlocks, isVehicleUnlocked, loadRank, giftBtn, giftCloseBtn, giftHomeBtn, giftVideoBtn, giftUnlockBtn */
+/* global canvas, input, W, H, game, startBtn, vehicleBtns, vehicleOpenBtn, vehicleBackBtn, resetGame, adjustCrime, grantWeapon, player, addFloatText, PX_PER_M, makeFood, makeSpecialFood, applySpecialEffect, VEHICLES, applyVehicle, throwBtn, throwFood, ready, SFX, pauseBtn, soundBtn, pauseHomeBtn, spawnInitialEnemies, INITIAL_ENEMIES, spawnBoss, rankOpenBtn, rankRefreshBtn, mockBtns, markPress, Toy, refreshUnlocks, isVehicleUnlocked, loadRank, vehicleHomeBtn, vehicleVideoBtn */
 
 const KEYMAP = {
   ArrowLeft: 'left',
@@ -136,14 +136,20 @@ window.addEventListener('blur', () => {
   input.joy = null;
 });
 
-/* 屏幕坐标 → 逻辑坐标 */
-function toLogical(e) {
+/* 屏幕坐标 → 逻辑坐标(缓存画布矩形, 避免每次指针事件触发重排) */
+let canvasRect = { left: 0, top: 0, width: 1, height: 1 };
+function refreshCanvasRect() {
   const r = canvas.getBoundingClientRect();
+  canvasRect = { left: r.left, top: r.top, width: r.width, height: r.height };
+}
+function toLogical(e) {
   return {
-    x: ((e.clientX - r.left) * W) / r.width,
-    y: ((e.clientY - r.top) * H) / r.height,
+    x: ((e.clientX - canvasRect.left) * W) / canvasRect.width,
+    y: ((e.clientY - canvasRect.top) * H) / canvasRect.height,
   };
 }
+window.addEventListener('resize', refreshCanvasRect);
+refreshCanvasRect();
 /* 手机: 屏幕下半区按下出现虚拟摇杆, 滑动控制方向(桌面端点击不移动, 仅用键盘) */
 const JOY_RADIUS = 70;
 canvas.addEventListener('pointerdown', (e) => {
@@ -153,20 +159,6 @@ canvas.addEventListener('pointerdown', (e) => {
   if (!game.started) {
     const p = toLogical(e);
     const hit = (b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
-    if (game.menuScreen === 'gift') {
-      /* 礼物 / 互动奖励面板 */
-      if (hit(giftCloseBtn)) {
-        markPress(giftCloseBtn);
-        game.menuScreen = 'main';
-      } else if (hit(giftHomeBtn)) {
-        markPress(giftHomeBtn);
-        Toy.openAuthor();
-      } else if (hit(giftVideoBtn) || hit(giftUnlockBtn)) {
-        markPress(hit(giftVideoBtn) ? giftVideoBtn : giftUnlockBtn);
-        Toy.openVideo();
-      }
-      return;
-    }
     if (game.menuScreen === 'rank') {
       /* 排行榜界面 */
       if (hit(vehicleBackBtn)) {
@@ -183,6 +175,17 @@ canvas.addEventListener('pointerdown', (e) => {
       if (hit(vehicleBackBtn)) {
         markPress(vehicleBackBtn);
         game.menuScreen = 'main';
+        return;
+      }
+      /* UP 主页 / 开发视频 入口 */
+      if (hit(vehicleHomeBtn)) {
+        markPress(vehicleHomeBtn);
+        Toy.openAuthor();
+        return;
+      }
+      if (hit(vehicleVideoBtn)) {
+        markPress(vehicleVideoBtn);
+        Toy.openVideo();
         return;
       }
       if (Toy.isMock()) {
@@ -210,10 +213,13 @@ canvas.addEventListener('pointerdown', (e) => {
       }
     } else {
       /* 主菜单 */
-      if (hit(giftBtn)) {
-        markPress(giftBtn);
-        game.menuScreen = 'gift';
-        refreshUnlocks(); // 刷新解锁状态
+      /* 开始按钮(第一位): 应用当前载具(贴图可能刚加载完, 重新算尺寸) */
+      if (hit(startBtn)) {
+        markPress(startBtn);
+        game.started = true;
+        applyVehicle(player.vehicle);
+        spawnInitialEnemies(INITIAL_ENEMIES); // 开局一批敌人
+        SFX.play('start');
         return;
       }
       if (hit(vehicleOpenBtn)) {
@@ -227,14 +233,6 @@ canvas.addEventListener('pointerdown', (e) => {
         game.menuScreen = 'rank';
         loadRank();
         return;
-      }
-      /* 开始按钮: 应用当前载具(贴图可能刚加载完, 重新算尺寸) */
-      if (hit(startBtn)) {
-        markPress(startBtn);
-        game.started = true;
-        applyVehicle(player.vehicle);
-        spawnInitialEnemies(INITIAL_ENEMIES); // 开局一批敌人
-        SFX.play('start');
       }
     }
     return;
@@ -265,12 +263,6 @@ canvas.addEventListener('pointerdown', (e) => {
       resetGame();
       game.started = false; // 退回开始界面
     }
-    return;
-  }
-  /* 点击回血按钮 → 消耗 1 个外卖回血 */
-  if (hitBtn(foodBtn)) {
-    markPress(foodBtn);
-    useFood();
     return;
   }
   /* 点击投掷按钮 → 丢出外卖锁定敌人 */

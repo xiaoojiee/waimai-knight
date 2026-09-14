@@ -33,6 +33,7 @@ function resetGame() {
   game.speed = VEHICLES.walk.baseSpeed;
   game.shake = 0;
   game.paused = false;
+  game.time = 0; // 本局时间清零: 火车头掉血按本局时间递增, 避免跨局/挂机菜单累积
   game.menuScreen = 'main';
   player.x = W / 2;
   player.y = H * 0.66;

@@ -2,7 +2,7 @@
 
 /* 装备: 枪械自动瞄准开火 / 子弹飞行 / 匕首挥砍特效 */
 
-/* global enemies, player, IMG, assets, ctx, game, WEAPONS, damageEnemy, W, H, spawnBoom, SFX */
+/* global enemies, player, IMG, assets, ctx, game, WEAPONS, damageEnemy, W, H, spawnBoom, SFX, boss, bossHit, damageBoss */
 
 const bullets = [];
 const slashFX = []; // 匕首挥砍特效
@@ -45,17 +45,29 @@ function shieldBlockPos() {
 }
 
 function nearestEnemy() {
-  let best = null;
-  let bd = 320 * 320; // 射程平方
+  let target = null;
+  let td = Infinity;
+  /* Boss 也是可瞄准目标: 射程放宽到整屏(悬停在上方也够得着) */
+  if (boss) {
+    const h = bossHit();
+    const dx = h.x - player.x;
+    const dy = h.y - player.y;
+    const d = dx * dx + dy * dy;
+    if (d < 700 * 700) {
+      td = d;
+      target = { x: h.x, y: h.y, boss: true };
+    }
+  }
+  /* 敌方骑手: 仍限 320 射程, 比 Boss 更近时优先 */
   for (const e of enemies) {
     if (e.dead || e.dying) continue;
     const d = (e.x - player.x) ** 2 + (e.y - player.y) ** 2;
-    if (d < bd) {
-      bd = d;
-      best = e;
+    if (d < 320 * 320 && d < td) {
+      td = d;
+      target = e;
     }
   }
-  return best;
+  return target;
 }
 function fireBullet(def, target) {
   const aim = Math.atan2(target.x - player.x, -(target.y - player.y));
@@ -103,6 +115,14 @@ function updateWeapon(dt) {
         break;
       }
     }
+    /* 子弹也能打 Boss(命中车头判定框) */
+    if (!hit && boss) {
+      const h = bossHit();
+      if (Math.abs(h.x - b.x) < h.hw && Math.abs(h.y - b.y) < h.hh) {
+        damageBoss(b.dmg, b.x, b.y);
+        hit = true;
+      }
+    }
     if (hit || b.life <= 0 || b.x < 0 || b.x > W || b.y < -40 || b.y > H + 40) bullets.splice(i, 1);
   }
   /* 匕首碰到敌人 → +15、销毁这一把、攻击特效 [2,2] */
@@ -110,6 +130,18 @@ function updateWeapon(dt) {
     const hitR = ORBIT.dagger.hitR;
     const hitIdx = [];
     eachOrbit('dagger', (φ, x, y, i) => {
+      /* 匕首同样能打 Boss(受 Boss 武器受击冷却限频) */
+      if (boss) {
+        const h = bossHit();
+        if (Math.abs(h.x - x) < h.hw + hitR && Math.abs(h.y - y) < h.hh + hitR) {
+          if (boss.wcd <= 0) {
+            boss.wcd = 0.25;
+            damageBoss(WEAPONS.dagger.extraDmg, x, y);
+            hitIdx.push(i);
+          }
+          return;
+        }
+      }
       for (const e of enemies) {
         if (e.dead || e.dying || e.hitCd > 0) continue;
         const dx = e.x - x;

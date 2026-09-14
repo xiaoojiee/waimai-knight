@@ -5,7 +5,7 @@
 /* global refreshUnlocks */
 
 const Toy = (() => {
-  const VIDEO_BVID = 'BV1XwtB6YECv'; // 测试视频
+  const VIDEO_BVID = 'BV1FndsBGEk8'; // 测试视频
   const AUTHOR_UID = '137429365'; // UP 主 uid
 
   /* ---- 本地模拟(?mock=1): 注入假的 window.toy, 便于在普通浏览器测试 ---- */
@@ -87,7 +87,7 @@ const Toy = (() => {
   function loadSdk() {
     if (mockMode || typeof document === 'undefined') return;
     const s = document.createElement('script');
-    s.src = 'https://s1.hdslb.com/bfs/seed/toy/app/sdk/toy-sdk.js';
+    s.src = '//s1.hdslb.com/bfs/seed/toy/app/sdk/toy-sdk.js'; // 协议相对地址, 与 SDK 文档接入方式一致
     s.async = true;
     s.onerror = () => {};
     s.onload = () => {

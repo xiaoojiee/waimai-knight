@@ -191,9 +191,9 @@ const VEHICLES = {
     maxDim: 44,
     baseH: 90,
     maxHp: 60,
-    baseSpeed: 83, // 约 15km/h
-    maxSpeed: 167, // 约 30km/h
-    moveSpeed: 83,
+    baseSpeed: 112, // 约 20km/h
+    maxSpeed: 224, // 约 40km/h
+    moveSpeed: 112,
     brake: 0.5,
     damageMul: 0.5,
     foodY: -0.126,
@@ -332,13 +332,6 @@ const BOSS_INTERVAL_MAX_M = 700; // 大运间隔上限(米)
 const BOSS_SPAWN_CHANCE = 0.6; // 到达阈值时的生成概率
 const BOSS_MONEY = 300; // 击败掉落金钱
 
-/* ===== 礼物 / 互动奖励面板 ===== */
+/* ===== UP 主信息 / 开发视频(载具选择页右侧展示) ===== */
 const AUTHOR_NAME = '火山哥哥'; // UP 主昵称(展示用)
 const VIDEO_TITLE = '我把「牛来」做成了游戏！点击即玩中国牛能飞！'; // 开发视频标题
-/* 每个互动动作解锁一个载具, 面板上用该载具的初始生命作为奖励描述 */
-const GIFTS = [
-  { action: '点赞', vtype: 'rider' },
-  { action: '投币', vtype: 'cow' },
-  { action: '收藏', vtype: 'car' },
-  { action: '关注', vtype: 'train' },
-];

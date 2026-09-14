@@ -2,12 +2,9 @@
 
 /* 界面绘制: HUD(血量/外卖/速度/犯罪条)/虚拟摇杆/游戏结束界面 */
 
-/* global ctx, fillRR, rr, W, H, player, game, PX_PER_M, BASE_SPEED, IMG, assets, HEAL_AMT, WEAPONS, nearestCustomer, nextCustomerDist, input, JOY_RADIUS, clamp, VEHICLES, drawFoodItem, drawFoodGlow, oldestNonSpecialIndex, screenMsg, loadProgress, SFX, BRAVE_TIME, MELON_TIME, EAT_TIME, DASH_TIME, vehicleDef, boss, Toy, rankState, isVehicleUnlocked, vehicleUnlockHint, AUTHOR_NAME, VIDEO_TITLE, GIFTS */
+/* global ctx, fillRR, rr, W, H, player, game, PX_PER_M, BASE_SPEED, IMG, assets, WEAPONS, nearestCustomer, nextCustomerDist, input, JOY_RADIUS, clamp, VEHICLES, drawFoodItem, drawFoodGlow, oldestNonSpecialIndex, screenMsg, loadProgress, SFX, BRAVE_TIME, MELON_TIME, EAT_TIME, DASH_TIME, vehicleDef, boss, Toy, rankState, isVehicleUnlocked, vehicleUnlockHint, AUTHOR_NAME, VIDEO_TITLE */
 
-/* 外卖按钮点击区域(右下角水泥路面, 方便手机拇指操作; drawHUD 绘制, input.js pointerdown 共用) */
-const foodBtn = { x: 322, y: H - 132, w: 146, h: 64 };
-
-/* 投掷外卖按钮(回血按钮下方; input.js pointerdown 共用) */
+/* 投掷外卖按钮(右下角水泥路面, 方便手机拇指操作; drawHUD 绘制, input.js pointerdown 共用) */
 const throwBtn = { x: 322, y: H - 62, w: 146, h: 54 };
 
 /* 暂停 / 音量 按钮(游戏内顶部中央; input.js pointerdown 共用) */
@@ -26,13 +23,13 @@ const BUFF_ROWS = [
 ];
 
 /* 开始按钮点击区域(主菜单, input.js pointerdown 共用) */
-const startBtn = { x: W / 2 - 100, y: H * 0.55, w: 200, h: 56 };
+const startBtn = { x: W / 2 - 110, y: H * 0.45, w: 220, h: 56 };
 
 /* "选择出行方式"按钮(主菜单, input.js pointerdown 共用) */
-const vehicleOpenBtn = { x: W / 2 - 110, y: H * 0.45, w: 220, h: 58 };
+const vehicleOpenBtn = { x: W / 2 - 110, y: H * 0.55, w: 220, h: 56 };
 
 /* 主菜单底部: 排行榜 (input.js pointerdown 共用) */
-const rankOpenBtn = { x: W / 2 - 64, y: H * 0.66, w: 128, h: 44 };
+const rankOpenBtn = { x: W / 2 - 110, y: H * 0.66, w: 220, h: 56 };
 /* 排行榜界面: 刷新按钮(input.js pointerdown 共用) */
 const rankRefreshBtn = { x: W - 110, y: 20, w: 90, h: 42 };
 
@@ -53,15 +50,9 @@ function pressDark(btn, r) {
   if (pressFlash(btn)) fillRR(btn.x, btn.y, btn.w, btn.h, r, 'rgba(0,0,0,0.3)');
 }
 
-/* 主菜单: 礼物图标按钮(input.js pointerdown 共用) */
-const giftBtn = { x: W - 74, y: 26, w: 52, h: 52 };
-
-/* 礼物 / 互动奖励面板(input.js pointerdown 共用) */
-const GIFT_PANEL = { x: 14, y: 56, w: 452, h: 566 };
-const giftCloseBtn = { x: GIFT_PANEL.x + GIFT_PANEL.w - 50, y: GIFT_PANEL.y + 12, w: 36, h: 36 };
-const giftHomeBtn = { x: 32 + 84, y: GIFT_PANEL.y + 52 + 46, w: 96, h: 30 };
-const giftVideoBtn = { x: 32, y: GIFT_PANEL.y + 190, w: 190, h: 128 };
-const giftUnlockBtn = { x: 236, y: GIFT_PANEL.y + 52 + 4 * 74 + 28, w: 200, h: 34 };
+/* 载具选择页右侧: UP 主页 / 开发视频 入口(input.js pointerdown 共用) */
+const vehicleHomeBtn = { x: 346, y: 226, w: 98, h: 28 };
+const vehicleVideoBtn = { x: 280, y: 342, w: 180, h: 126 };
 
 /* 模拟模式(?mock=1)下, 载具页底部切换互动状态(input.js pointerdown 共用) */
 const mockBtns = [
@@ -74,7 +65,7 @@ const mockBtns = [
 /* 返回按钮(出行方式选择界面, input.js pointerdown 共用) */
 const vehicleBackBtn = { x: 20, y: 20, w: 88, h: 42 };
 
-/* 出行方式卡片(左侧纵向排布; 右侧为属性面板; input.js pointerdown 共用) */
+/* 出行方式卡片(左侧纵向排布; 右侧为 UP 入口; input.js pointerdown 共用) */
 const vehicleKeys = Object.keys(VEHICLES);
 const vehicleBtns = {};
 (function layoutVehicleBtns() {
@@ -87,100 +78,6 @@ const vehicleBtns = {};
     vehicleBtns[k] = { x: 20, y: y0 + i * (bh + gap), w: bw, h: bh };
   });
 })();
-
-/* 替身面板式六维属性(右下方雷达图) */
-const STAT_AXES = [
-  { key: '速度', get: (d) => d.baseSpeed, min: 80, max: 300 },
-  { key: '极速', get: (d) => d.maxSpeed, min: 160, max: 480 },
-  { key: '耐久', get: (d) => d.maxHp, min: 50, max: 160 },
-  { key: '力量', get: (d) => d.damageMul, min: 0.5, max: 2 },
-  { key: '灵活', get: (d) => d.moveSpeed, min: 80, max: 380 },
-  { key: '冲刺', get: (d) => (d.dashOnEat ? 1 : 0.12), min: 0, max: 1 },
-];
-function statGrade(v) {
-  if (v >= 1) return 'S'; // 突破上限: S 级
-  if (v >= 0.85) return 'A';
-  if (v >= 0.65) return 'B';
-  if (v >= 0.45) return 'C';
-  if (v >= 0.25) return 'D';
-  return 'E';
-}
-/* 允许超过 1(如火车头速度)以便面板多边形冲破圆框 */
-function statValues(def) {
-  return STAT_AXES.map((s) => Math.max(0.08, Math.min(2.1, (s.get(def) - s.min) / (s.max - s.min))));
-}
-function drawStatPanel(cx, cy, r, def) {
-  const n = STAT_AXES.length;
-  const ang = (i) => -Math.PI / 2 + (i / n) * Math.PI * 2;
-  /* 背板 */
-  ctx.fillStyle = 'rgba(10,12,15,0.5)';
-  ctx.beginPath();
-  ctx.arc(cx, cy, r + 38, 0, Math.PI * 2);
-  ctx.fill();
-  /* 网格环 */
-  ctx.strokeStyle = 'rgba(255,255,255,0.16)';
-  ctx.lineWidth = 1;
-  for (let ring = 1; ring <= 4; ring++) {
-    const rr = (r * ring) / 4;
-    ctx.beginPath();
-    for (let i = 0; i <= n; i++) {
-      const a = ang(i % n);
-      const x = cx + Math.cos(a) * rr;
-      const y = cy + Math.sin(a) * rr;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  }
-  /* 轴线 */
-  for (let i = 0; i < n; i++) {
-    const a = ang(i);
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-    ctx.stroke();
-  }
-  /* 数据多边形 */
-  const vals = statValues(def);
-  ctx.beginPath();
-  for (let i = 0; i <= n; i++) {
-    const a = ang(i % n);
-    const vr = r * vals[i % n];
-    const x = cx + Math.cos(a) * vr;
-    const y = cy + Math.sin(a) * vr;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-  ctx.fillStyle = 'rgba(255,213,63,0.35)';
-  ctx.fill();
-  ctx.strokeStyle = '#ffd23f';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  /* 顶点 */
-  for (let i = 0; i < n; i++) {
-    const a = ang(i);
-    ctx.fillStyle = '#ffd23f';
-    ctx.beginPath();
-    ctx.arc(cx + Math.cos(a) * r * vals[i], cy + Math.sin(a) * r * vals[i], 2.5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  /* 标签 + 等级 */
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  for (let i = 0; i < n; i++) {
-    const a = ang(i);
-    const lx = cx + Math.cos(a) * (r + 20);
-    const ly = cy + Math.sin(a) * (r + 20);
-    ctx.fillStyle = '#e6e9ed';
-    ctx.font = "bold 12px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillText(STAT_AXES[i].key, lx, ly - 8);
-    ctx.fillStyle = '#ffd23f';
-    ctx.font = "bold 16px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillText(statGrade(vals[i]), lx, ly + 9);
-  }
-  ctx.textBaseline = 'alphabetic';
-}
 
 /* ---- 加载页(贴图未加载完时显示, 并屏蔽输入) ---- */
 function drawLoading() {
@@ -210,15 +107,21 @@ function drawMenu() {
   ctx.textAlign = 'center';
   if (game.menuScreen === 'vehicle') drawVehicleSelect();
   else if (game.menuScreen === 'rank') drawRankScreen();
-  else if (game.menuScreen === 'gift') drawGiftPanel();
   else drawMenuMain();
 }
 
-/* 主菜单: 标题 + 选择出行方式 + 开始 */
+/* 主菜单: 标题 + 开始(第一位) + 选择出行方式 + 排行榜 */
 function drawMenuMain() {
   ctx.fillStyle = '#2b2b2b';
   ctx.font = "bold 38px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.fillText('肥嘟嘟外卖模拟器', W / 2, H * 0.3);
+  /* 开始按钮(第一位) */
+  const sy = pressFlash(startBtn) ? 3 : 0;
+  fillRR(startBtn.x, startBtn.y + sy, startBtn.w, startBtn.h, 14, '#2b2b2b');
+  ctx.fillStyle = '#ffd23f';
+  ctx.font = "bold 26px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('开始', W / 2, startBtn.y + sy + 38);
+  pressShade(startBtn, 14);
   /* 载具按钮 */
   const b = vehicleOpenBtn;
   const by = pressFlash(b) ? 3 : 0;
@@ -233,13 +136,6 @@ function drawMenuMain() {
   ctx.font = "13px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.fillText('当前: ' + VEHICLES[player.vehicle].label, W / 2, b.y + by + 48);
   pressShade(b, 14);
-  /* 开始按钮 */
-  const sy = pressFlash(startBtn) ? 3 : 0;
-  fillRR(startBtn.x, startBtn.y + sy, startBtn.w, startBtn.h, 14, '#2b2b2b');
-  ctx.fillStyle = '#ffd23f';
-  ctx.font = "bold 26px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('开始', W / 2, startBtn.y + sy + 38);
-  pressShade(startBtn, 14);
   /* 底部: 排行榜 */
   const it = { b: rankOpenBtn, label: '排行榜' };
   const dy = pressFlash(it.b) ? 3 : 0;
@@ -252,19 +148,13 @@ function drawMenuMain() {
   ctx.font = "bold 15px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.fillText(it.label, it.b.x + it.b.w / 2, it.b.y + dy + 28);
   pressShade(it.b, 10);
-  /* 礼物图标按钮(右上) */
-  const gb = giftBtn;
-  const gdy = pressFlash(gb) ? 3 : 0;
-  fillRR(gb.x, gb.y + gdy, gb.w, gb.h, 12, '#2b2b2b');
-  drawGiftIcon(gb.x + gb.w / 2, gb.y + gdy + gb.h / 2, 13);
-  pressDark(gb, 12);
   /* 操作提示 */
   ctx.fillStyle = '#5a4a00';
   ctx.font = "12px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.fillText('电脑: 方向键/WASD · 手机: 下半屏滑动', W / 2, H * 0.86);
 }
 
-/* 出行方式选择界面: 左侧卡片列表 + 右侧替身式属性面板 + 返回 */
+/* 出行方式选择界面: 左侧卡片列表 + 右侧 UP 入口 + 返回 */
 function drawVehicleSelect() {
   ctx.fillStyle = '#2b2b2b';
   ctx.font = "bold 26px 'PingFang SC','Microsoft YaHei',sans-serif";
@@ -314,13 +204,87 @@ function drawVehicleSelect() {
     pressShade(b, 14);
     ctx.textAlign = 'center';
   }
-  /* 右侧替身式属性面板(显示当前所选载具) */
-  const selDef = VEHICLES[player.vehicle];
+  /* 右侧: UP 主卡片 + 开发视频入口 */
+  const upX = 280;
+  const upW = 180;
+  ctx.textAlign = 'left';
   ctx.fillStyle = '#2b2b2b';
+  ctx.font = "bold 17px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('作者', upX, 156);
+  /* 作者卡片 */
+  const acY = 168;
+  fillRR(upX, acY, upW, 104, 14, '#f0c93f');
+  ctx.strokeStyle = '#c9a51c';
+  ctx.lineWidth = 1.5;
+  rr(upX, acY, upW, 104, 14);
+  ctx.stroke();
+  const avX = upX + 32;
+  const avY = acY + 52;
+  const avR = 28;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(avX, avY, avR, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = '#ffe0b0';
+  ctx.fillRect(avX - avR, avY - avR, avR * 2, avR * 2);
+  fitInto(IMG.cow, avX, avY, avR * 2.1);
+  ctx.restore();
+  ctx.strokeStyle = '#e6b878';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(avX, avY, avR, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#5a4a00';
   ctx.font = "bold 16px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText(AUTHOR_NAME, upX + 68, acY + 30);
+  /* 访问主页按钮 */
+  const hb = vehicleHomeBtn;
+  const hdy = pressFlash(hb) ? 2 : 0;
+  fillRR(hb.x, hb.y + hdy, hb.w, hb.h, 8, '#f0872a');
+  ctx.fillStyle = '#ffffff';
+  ctx.font = "bold 13px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.textAlign = 'center';
-  ctx.fillText(selDef.label, 372, 180);
-  drawStatPanel(372, 420, 66, selDef);
+  ctx.fillText('访问主页', hb.x + hb.w / 2, hb.y + hdy + 19);
+  pressDark(hb, 8);
+  /* 开发视频 */
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#2b2b2b';
+  ctx.font = "bold 17px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText('开发视频', upX, 330);
+  const vb = vehicleVideoBtn;
+  const vdy = pressFlash(vb) ? 2 : 0;
+  fillRR(vb.x, vb.y + vdy, vb.w, vb.h, 12, '#2b2b2b');
+  ctx.save();
+  ctx.beginPath();
+  rr(vb.x, vb.y + vdy, vb.w, vb.h, 12);
+  ctx.clip();
+  const grd = ctx.createLinearGradient(vb.x, vb.y, vb.x + vb.w, vb.y + vb.h);
+  grd.addColorStop(0, '#3f7a4f');
+  grd.addColorStop(1, '#8fb84a');
+  ctx.fillStyle = grd;
+  ctx.fillRect(vb.x, vb.y + vdy, vb.w, vb.h);
+  fitInto(IMG.cow, vb.x + vb.w / 2, vb.y + vdy + vb.h / 2, vb.h * 0.95);
+  ctx.restore();
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath();
+  ctx.arc(vb.x + vb.w / 2, vb.y + vdy + vb.h / 2, 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(vb.x + vb.w / 2 - 7, vb.y + vdy + vb.h / 2 - 11);
+  ctx.lineTo(vb.x + vb.w / 2 - 7, vb.y + vdy + vb.h / 2 + 11);
+  ctx.lineTo(vb.x + vb.w / 2 + 11, vb.y + vdy + vb.h / 2);
+  ctx.closePath();
+  ctx.fill();
+  pressDark(vb, 12);
+  /* 视频标题(换行) */
+  ctx.fillStyle = '#5a4a00';
+  const titleFont = "12px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.font = titleFont;
+  wrapCJK(VIDEO_TITLE, upW, titleFont).forEach((line, i) =>
+    ctx.fillText(line, upX, vb.y + vb.h + 26 + i * 18),
+  );
+  ctx.textAlign = 'center';
   /* 返回按钮 */
   const r = vehicleBackBtn;
   const rdy = pressFlash(r) ? 3 : 0;
@@ -348,7 +312,7 @@ function drawVehicleSelect() {
   }
 }
 
-/* ---- 礼物 / 互动奖励面板 ---- */
+/* ---- 通用绘制辅助(贴图适配 / 中文换行) ---- */
 /* 把贴图按比例塞进 box×box 方框内居中绘制 */
 function fitInto(img, cx, cy, box) {
   if (!img || !img.naturalWidth) return;
@@ -371,252 +335,6 @@ function wrapCJK(text, maxW, font) {
   }
   if (cur) lines.push(cur);
   return lines;
-}
-
-/* 礼物盒图标 */
-function drawGiftIcon(cx, cy, s) {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.fillStyle = '#f0872a';
-  ctx.fillRect(-s, -s * 0.55, s * 2, s * 1.25);
-  ctx.fillStyle = '#d96f18';
-  ctx.fillRect(-s, -s * 0.55, s * 2, s * 0.26);
-  ctx.fillStyle = '#ffd23f';
-  ctx.fillRect(-s * 0.18, -s * 0.55, s * 0.36, s * 1.25);
-  ctx.beginPath();
-  ctx.arc(-s * 0.4, -s * 0.72, s * 0.32, 0, Math.PI * 2);
-  ctx.arc(s * 0.4, -s * 0.72, s * 0.32, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
-/* 对勾 */
-function drawCheck(cx, cy, r, color) {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(cx - r * 0.7, cy);
-  ctx.lineTo(cx - r * 0.1, cy + r * 0.6);
-  ctx.lineTo(cx + r * 0.8, cy - r * 0.7);
-  ctx.stroke();
-  ctx.lineCap = 'butt';
-}
-
-function drawGiftPanel() {
-  ctx.fillStyle = '#e9e2cf';
-  ctx.fillRect(0, 0, W, H);
-  const P = GIFT_PANEL;
-  fillRR(P.x, P.y, P.w, P.h, 18, '#f7f3e8');
-  ctx.strokeStyle = '#e2dac6';
-  ctx.lineWidth = 2;
-  rr(P.x, P.y, P.w, P.h, 18);
-  ctx.stroke();
-  /* 关闭按钮 */
-  const cb = giftCloseBtn;
-  const cdy = pressFlash(cb) ? 2 : 0;
-  const ccx = cb.x + cb.w / 2;
-  const ccy = cb.y + cdy + cb.h / 2;
-  ctx.fillStyle = '#e8e2d2';
-  ctx.beginPath();
-  ctx.arc(ccx, ccy, cb.w / 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#8a8272';
-  ctx.lineWidth = 2;
-  const cr = cb.w / 2 - 11;
-  ctx.beginPath();
-  ctx.moveTo(ccx - cr, ccy - cr);
-  ctx.lineTo(ccx + cr, ccy + cr);
-  ctx.moveTo(ccx + cr, ccy - cr);
-  ctx.lineTo(ccx - cr, ccy + cr);
-  ctx.stroke();
-
-  const lx = 32;
-  const lw = 190;
-  const rx = 236;
-  const rw = 200;
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#3a352a';
-  ctx.font = "bold 17px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('作者', lx, P.y + 40);
-  ctx.fillText('互动奖励', rx, P.y + 40);
-
-  /* 作者卡片 */
-  const acY = P.y + 52;
-  fillRR(lx, acY, lw, 92, 14, '#ffffff');
-  ctx.strokeStyle = '#efe7d4';
-  ctx.lineWidth = 1.5;
-  rr(lx, acY, lw, 92, 14);
-  ctx.stroke();
-  const avX = lx + 44;
-  const avY = acY + 46;
-  const avR = 28;
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(avX, avY, avR, 0, Math.PI * 2);
-  ctx.clip();
-  ctx.fillStyle = '#ffe0b0';
-  ctx.fillRect(avX - avR, avY - avR, avR * 2, avR * 2);
-  fitInto(IMG.cow, avX, avY, avR * 2.1);
-  ctx.restore();
-  ctx.strokeStyle = '#e6b878';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(avX, avY, avR, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.fillStyle = '#2b2b2b';
-  ctx.font = "bold 16px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.textAlign = 'left';
-  ctx.fillText(AUTHOR_NAME, lx + 84, acY + 34);
-  /* 访问主页 */
-  const hb = giftHomeBtn;
-  const hdy = pressFlash(hb) ? 2 : 0;
-  fillRR(hb.x, hb.y + hdy, hb.w, hb.h, 8, '#f0872a');
-  ctx.fillStyle = '#ffffff';
-  ctx.font = "bold 13px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.textAlign = 'center';
-  ctx.fillText('访问主页', hb.x + hb.w / 2, hb.y + hdy + 21);
-  pressDark(hb, 8);
-
-  /* 开发视频 */
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#3a352a';
-  ctx.font = "bold 17px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('开发视频', lx, P.y + 178);
-  const vb = giftVideoBtn;
-  const vdy = pressFlash(vb) ? 2 : 0;
-  fillRR(vb.x, vb.y + vdy, vb.w, vb.h, 12, '#2b2b2b');
-  ctx.save();
-  ctx.beginPath();
-  rr(vb.x, vb.y + vdy, vb.w, vb.h, 12);
-  ctx.clip();
-  const grd = ctx.createLinearGradient(vb.x, vb.y, vb.x + vb.w, vb.y + vb.h);
-  grd.addColorStop(0, '#3f7a4f');
-  grd.addColorStop(1, '#8fb84a');
-  ctx.fillStyle = grd;
-  ctx.fillRect(vb.x, vb.y + vdy, vb.w, vb.h);
-  fitInto(IMG.cow, vb.x + vb.w / 2, vb.y + vdy + vb.h / 2, vb.h * 0.95);
-  ctx.restore();
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.beginPath();
-  ctx.arc(vb.x + vb.w / 2, vb.y + vdy + vb.h / 2, 22, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.moveTo(vb.x + vb.w / 2 - 7, vb.y + vdy + vb.h / 2 - 11);
-  ctx.lineTo(vb.x + vb.w / 2 - 7, vb.y + vdy + vb.h / 2 + 11);
-  ctx.lineTo(vb.x + vb.w / 2 + 11, vb.y + vdy + vb.h / 2);
-  ctx.closePath();
-  ctx.fill();
-  pressDark(vb, 12);
-  ctx.fillStyle = '#5a5346';
-  const titleFont = "12px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.font = titleFont;
-  wrapCJK(VIDEO_TITLE, lw, titleFont).forEach((line, i) =>
-    ctx.fillText(line, lx, vb.y + vb.h + 26 + i * 18),
-  );
-
-  /* 互动奖励列表 */
-  const rowY0 = P.y + 52;
-  const rowH = 66;
-  const gap = 8;
-  GIFTS.forEach((g, i) => {
-    const ry = rowY0 + i * (rowH + gap);
-    const unlocked = isVehicleUnlocked(g.vtype);
-    fillRR(rx, ry, rw, rowH, 12, unlocked ? '#fdeede' : '#efeadc');
-    ctx.strokeStyle = unlocked ? '#f0872a' : '#ded7c5';
-    ctx.lineWidth = unlocked ? 2 : 1.5;
-    rr(rx, ry, rw, rowH, 12);
-    ctx.stroke();
-    const icX = rx + 34;
-    const icY = ry + rowH / 2;
-    const icR = 22;
-    if (unlocked) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(icX, icY, icR, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(icX - icR, icY - icR, icR * 2, icR * 2);
-      fitInto(IMG[VEHICLES[g.vtype].img], icX, icY, icR * 1.9);
-      ctx.restore();
-      ctx.strokeStyle = '#f0c9a0';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(icX, icY, icR, 0, Math.PI * 2);
-      ctx.stroke();
-    } else {
-      fillRR(icX - icR, icY - icR, icR * 2, icR * 2, icR, '#e2dccb');
-      ctx.fillStyle = '#a89e86';
-      ctx.font = "bold 20px 'PingFang SC','Microsoft YaHei',sans-serif";
-      ctx.textAlign = 'center';
-      ctx.fillText('?', icX, icY + 7);
-    }
-    ctx.textAlign = 'left';
-    ctx.fillStyle = unlocked ? '#2b2b2b' : '#9a9280';
-    ctx.font = "bold 16px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillText(unlocked ? VEHICLES[g.vtype].label : '???', rx + 68, ry + 27);
-    ctx.fillStyle = unlocked ? '#8a8272' : '#b0a894';
-    ctx.font = "12px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillText(
-      unlocked ? '初始生命 ' + VEHICLES[g.vtype].maxHp : '初始生命 ???',
-      rx + 68,
-      ry + 47,
-    );
-    if (unlocked) {
-      drawCheck(rx + rw - 24, ry + rowH / 2, 11, '#f0872a');
-    } else {
-      ctx.fillStyle = '#c3bba6';
-      ctx.font = "14px 'PingFang SC','Microsoft YaHei',sans-serif";
-      ctx.textAlign = 'center';
-      ctx.fillText('🔒', rx + rw - 24, ry + rowH / 2 + 5);
-    }
-  });
-
-  /* 提示 + 解锁按钮 */
-  const hintFont = "11px 'PingFang SC','Microsoft YaHei',sans-serif";
-  const hintY = rowY0 + GIFTS.length * (rowH + gap) + 2;
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#9a9280';
-  wrapCJK('为开发视频点赞、投币并收藏后解锁', rw, hintFont).forEach((line, i) =>
-    ctx.fillText(line, rx, hintY + 12 + i * 15),
-  );
-  const allUnlocked = GIFTS.every((g) => isVehicleUnlocked(g.vtype));
-  const ub = giftUnlockBtn;
-  const udy = pressFlash(ub) ? 2 : 0;
-  fillRR(ub.x, ub.y + udy, ub.w, ub.h, 8, allUnlocked ? '#f0872a' : '#e2dccb');
-  ctx.fillStyle = allUnlocked ? '#ffffff' : '#a89e86';
-  ctx.font = "bold 14px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.textAlign = 'center';
-  ctx.fillText(allUnlocked ? '已全部解锁' : '尚未满足解锁条件', ub.x + ub.w / 2, ub.y + udy + 22);
-  pressDark(ub, 8);
-
-  /* 奖励已解锁(绿卡) */
-  const gcY = ub.y + ub.h + 16;
-  fillRR(rx, gcY, rw, 110, 12, allUnlocked ? '#eaf6e6' : '#efece1');
-  ctx.strokeStyle = allUnlocked ? '#b6e0a8' : '#ded7c5';
-  ctx.lineWidth = 2;
-  rr(rx, gcY, rw, 110, 12);
-  ctx.stroke();
-  drawGiftIcon(rx + 34, gcY + 42, 17);
-  ctx.textAlign = 'left';
-  ctx.fillStyle = allUnlocked ? '#2f7d2a' : '#9a9280';
-  ctx.font = "bold 16px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText(allUnlocked ? '奖励已解锁' : '全部解锁可得', rx + 68, gcY + 36);
-  const chips = ['外卖 +1', '护盾 +1'];
-  chips.forEach((c, i) => {
-    const cw = 82;
-    const cxx = rx + 14 + i * (cw + 8);
-    fillRR(cxx, gcY + 52, cw, 26, 6, allUnlocked ? '#d9efce' : '#e6e2d6');
-    ctx.fillStyle = allUnlocked ? '#2f7d2a' : '#9a9280';
-    ctx.font = "12px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.textAlign = 'center';
-    ctx.fillText(c, cxx + cw / 2, gcY + 69);
-  });
-  ctx.textAlign = 'left';
-  ctx.fillStyle = allUnlocked ? '#5a8f4a' : '#a89e86';
-  ctx.font = "11px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('每周开局发放', rx + 14, gcY + 96);
 }
 
 /* ---- 排行榜(里程) ---- */
@@ -844,53 +562,6 @@ function drawHUD() {
   ctx.font = "12px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.fillText('已行驶 ' + (game.totalDist / PX_PER_M / 1000).toFixed(2) + ' km', W - 24, 62);
 
-  /* 右下: 回血按钮(消耗最下方非特殊外卖) */
-  const healIdx = oldestNonSpecialIndex();
-  const healItem = healIdx >= 0 ? player.food[healIdx] : null;
-  const poisonNext = !!(healItem && healItem.poison);
-  const canUse = healIdx >= 0 && player.hp < player.maxHp;
-  fillRR(
-    foodBtn.x,
-    foodBtn.y,
-    foodBtn.w,
-    foodBtn.h,
-    14,
-    canUse ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)',
-  );
-  ctx.strokeStyle = canUse ? 'rgba(255,213,63,0.5)' : 'rgba(255,255,255,0.12)';
-  ctx.lineWidth = 1;
-  rr(foodBtn.x, foodBtn.y, foodBtn.w, foodBtn.h, 14);
-  ctx.stroke();
-  /* 待食用的是有毒外卖 → 按钮发绿光 */
-  if (poisonNext) {
-    ctx.save();
-    ctx.shadowColor = 'rgba(74,222,128,0.95)';
-    ctx.shadowBlur = 18;
-    ctx.strokeStyle = 'rgba(74,222,128,0.95)';
-    ctx.lineWidth = 3;
-    rr(foodBtn.x, foodBtn.y, foodBtn.w, foodBtn.h, 14);
-    ctx.stroke();
-    ctx.restore();
-  }
-  if (healItem) {
-    ctx.save();
-    ctx.translate(foodBtn.x + 32, foodBtn.y + 32);
-    if (poisonNext) drawFoodGlow(healItem, 40);
-    drawFoodItem(healItem, 40);
-    ctx.restore();
-  }
-  ctx.textAlign = 'left';
-  ctx.fillStyle = canUse ? '#ffd23f' : '#8a929c';
-  ctx.font = "bold 20px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText('回血', foodBtn.x + 62, foodBtn.y + 32);
-  ctx.fillStyle = canUse ? '#c7cdd4' : '#6a727c';
-  ctx.font = "11px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText(
-    '+' + Math.round(HEAL_AMT * (vehicleDef().healMul || 1)) + ' HP',
-    foodBtn.x + 62,
-    foodBtn.y + 50,
-  );
-  pressDark(foodBtn, 14);
 
   /* 投掷按钮(消耗最下方非特殊外卖, 自动锁定敌人) */
   const throwIdx = oldestNonSpecialIndex();
@@ -924,16 +595,16 @@ function drawHUD() {
   ctx.fillText('锁定敌人', throwBtn.x + 62, throwBtn.y + 44);
   pressDark(throwBtn, 14);
 
-  /* 装备状态(外卖按钮上方, 可同时显示多种道具) */
+  /* 装备状态(投掷按钮上方, 可同时显示多种道具) */
   const heldTypes = ['dagger', 'pistol', 'rifle', 'shield'].filter((t) => player.weapons[t]);
   if (heldTypes.length > 0) {
-    fillRR(foodBtn.x, foodBtn.y - 60, foodBtn.w, 48, 12, 'rgba(10,12,15,0.55)');
+    fillRR(throwBtn.x, throwBtn.y - 60, throwBtn.w, 48, 12, 'rgba(10,12,15,0.55)');
     if (assets.item) {
       const fw = IMG.item.naturalWidth / 2;
       const fh = IMG.item.naturalHeight / 2;
       heldTypes.forEach((type, idx) => {
         const def = WEAPONS[type];
-        const ix = foodBtn.x + 6 + idx * 34;
+        const ix = throwBtn.x + 6 + idx * 34;
         ctx.drawImage(
           IMG.item,
           def.frame[0] * fw + 2,
@@ -941,14 +612,14 @@ function drawHUD() {
           fw - 4,
           fh - 4,
           ix,
-          foodBtn.y - 52,
+          throwBtn.y - 52,
           26,
           26,
         );
         ctx.textAlign = 'left';
         ctx.fillStyle = '#e6e9ed';
         ctx.font = "bold 11px 'PingFang SC','Microsoft YaHei',sans-serif";
-        ctx.fillText('×' + player.weapons[type].ammo, ix + 27, foodBtn.y - 30);
+        ctx.fillText('×' + player.weapons[type].ammo, ix + 27, throwBtn.y - 30);
       });
     }
   }
