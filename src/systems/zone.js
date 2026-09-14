@@ -123,7 +123,7 @@ function updateCrime(dt) {
     /* 载具犯罪倍率(如火车头降到 0.1) */
     const crimeMul = vehicleDef().crimeMul || 1;
     if (crimeMul !== 1) gain *= crimeMul;
-    /* 「我超勇的」: 犯罪累积速率降到 10% */
+    /* 「我超勇的」: 犯罪累积速率大幅降低 */
     if (player.buff.brave > 0) gain *= BRAVE_CRIME_MUL;
     player.crime += gain;
     crimeCool = 2; // 停止犯罪 2 秒后开始衰减

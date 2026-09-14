@@ -149,7 +149,7 @@ const ZONE_LEN_MAX = 900; // 施工路段长度上限(px)
 const ZONE_ANCHOR_Y = H * 0.66; // 世界坐标 → 屏幕 y 锚点(玩家标称位置)
 const CRIME_SPEED_LIMIT = BASE_SPEED + 60; // 超过此速度算超速, 涨犯罪条
 const CRIME_MAX_LVL = 4; // 犯罪等级上限(犯罪槽攒满自动升一级, 太刀气刃槽式)
-const BRAVE_CRIME_MUL = 0.1; // 「我超勇的」期间犯罪累积倍率
+const BRAVE_CRIME_MUL = 0.02; // 「我超勇的」期间犯罪累积倍率(大幅降低)
 const CRIME_OVER_RATE = 0.12; // 满级后每秒提升的警车/道钉频率(无上限)
 
 /* =====================================================================
@@ -313,7 +313,7 @@ const DASH_DEALT_MUL = 3; // 冲刺时撞击敌人伤害倍率
 const DASH_TAKEN_MUL = 0.3; // 冲刺时受到伤害倍率
 
 /* ===== 逆行大运 Boss ===== */
-const BOSS_HP = 500; // 血量
+const BOSS_HP = 100; // 血量(基础值, 随里程按 BOSS_SCALE_PER_DIFF 提升)
 const BOSS_RAM_DMG = 20; // 玩家每次撞 Boss 扣血
 const BOSS_RAM_CD = 0.4; // 玩家撞 Boss 冷却(秒)
 const BOSS_POLICE_DMG = 120; // 警车撞 Boss 扣血(大量)

@@ -6,6 +6,7 @@
 
 const customers = []; // 多个路边客户
 let nextCustomerDist = CUSTOMER_DELAY_FIRST_M * PX_PER_M; // 下一个客户出现的距离阈值(px)
+const CUS_LEAVE_TIME = 0.6; // 送餐后客户离开(走开+淡出)的时长(秒)
 
 /* 普通客户图集 3列×3行; 特殊客户图集 2列×2行 */
 const CUS_FRAMES = []; // [{x, y, w, h}] 行主序
@@ -70,6 +71,8 @@ function spawnCustomer(atY) {
     demand: special >= 0 ? 0 : rollDemand(), // 特殊客户不看数量
     frame: Math.floor(Math.random() * CUS_FRAMES.length),
     resolved: false,
+    leaving: false, // 结算后走开
+    leaveT: 0,
   });
 }
 
@@ -124,6 +127,14 @@ function updateCustomer(dt) {
   }
   for (let i = customers.length - 1; i >= 0; i--) {
     const c = customers[i];
+    /* 已结算 → 离开: 走向自己那一侧的人行道并淡出 */
+    if (c.leaving) {
+      c.leaveT += dt;
+      c.x += (c.side === 0 ? -1 : 1) * 130 * dt;
+      c.y += game.speed * GROUND_SCROLL_MUL * 0.5 * dt;
+      if (c.leaveT >= CUS_LEAVE_TIME) customers.splice(i, 1);
+      continue;
+    }
     c.y += game.speed * GROUND_SCROLL_MUL * dt; // 客户站在路边, 随世界一起后移(与地面同步)
     if (!c.resolved && c.y > player.y) {
       /* 经过客户: 结算 */
@@ -150,6 +161,9 @@ function updateCustomer(dt) {
           gameOver();
         }
       }
+      /* 结算完毕 → 客户离开 */
+      c.leaving = true;
+      c.leaveT = 0;
     }
     if (c.y > H + 120) customers.splice(i, 1);
   }
@@ -178,38 +192,49 @@ function scheduleCustomer() {
 function drawCustomer() {
   for (const c of customers) {
     const s = 64;
+    /* 离开时淡出 */
+    const alpha = c.leaving ? Math.max(0, 1 - c.leaveT / CUS_LEAVE_TIME) : 1;
+    if (alpha <= 0) continue;
+    ctx.globalAlpha = alpha;
     if (c.special >= 0) {
-      if (!assets.specCus || !SPCUS_FRAMES.length) continue;
-      const f = SPCUS_FRAMES[c.special % SPCUS_FRAMES.length];
-      const w = s * (f.w / f.h);
-      /* 金色高光 */
-      const g = ctx.createRadialGradient(c.x, c.y - s / 2, s * 0.1, c.x, c.y - s / 2, s * 0.85);
-      g.addColorStop(0, 'rgba(255,213,63,0.5)');
-      g.addColorStop(0.6, 'rgba(255,213,63,0.22)');
-      g.addColorStop(1, 'rgba(255,213,63,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(c.x, c.y - s / 2, s * 0.85, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.save();
-      ctx.translate(c.x, c.y);
-      if (c.side === 1) ctx.scale(-1, 1);
-      ctx.drawImage(IMG.specCus, f.x, f.y, f.w, f.h, -w / 2, -s, w, s);
-      ctx.restore();
-      /* 需求气泡: 显示对应特殊外卖图标 */
-      fillRR(c.x - 26, c.y - s - 34, 52, 32, 12, 'rgba(10,12,15,0.72)');
-      ctx.strokeStyle = 'rgba(255,213,63,0.7)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(c.x, c.y - s - 18, 13, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.save();
-      ctx.translate(c.x, c.y - s - 18);
-      drawFoodItem({ special: SPECIAL_MATCH[c.special], poison: false, f: null }, 24);
-      ctx.restore();
+      if (assets.specCus && SPCUS_FRAMES.length) {
+        const f = SPCUS_FRAMES[c.special % SPCUS_FRAMES.length];
+        const w = s * (f.w / f.h);
+        /* 金色高光 */
+        const g = ctx.createRadialGradient(c.x, c.y - s / 2, s * 0.1, c.x, c.y - s / 2, s * 0.85);
+        g.addColorStop(0, 'rgba(255,213,63,0.5)');
+        g.addColorStop(0.6, 'rgba(255,213,63,0.22)');
+        g.addColorStop(1, 'rgba(255,213,63,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y - s / 2, s * 0.85, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        if (c.side === 1) ctx.scale(-1, 1);
+        ctx.drawImage(IMG.specCus, f.x, f.y, f.w, f.h, -w / 2, -s, w, s);
+        ctx.restore();
+        /* 需求气泡: 显示对应特殊外卖图标(结算后不再显示) */
+        if (!c.resolved) {
+          fillRR(c.x - 26, c.y - s - 34, 52, 32, 12, 'rgba(10,12,15,0.72)');
+          ctx.strokeStyle = 'rgba(255,213,63,0.7)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(c.x, c.y - s - 18, 13, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.save();
+          ctx.translate(c.x, c.y - s - 18);
+          drawFoodItem({ special: SPECIAL_MATCH[c.special], poison: false, f: null }, 24);
+          ctx.restore();
+        }
+      }
+      ctx.globalAlpha = 1;
       continue;
     }
-    if (!assets.customer || !CUS_FRAMES.length) continue;
+    if (!assets.customer || !CUS_FRAMES.length) {
+      ctx.globalAlpha = 1;
+      continue;
+    }
     const f = CUS_FRAMES[c.frame % CUS_FRAMES.length]; // 逐帧包围盒(以内容为中心切割)
     const w = s * (f.w / f.h); // 按帧的实际宽高比绘制
     ctx.save();
@@ -223,11 +248,14 @@ function drawCustomer() {
     if (c.side === 1) ctx.scale(-1, 1);
     ctx.drawImage(IMG.customer, f.x, f.y, f.w, f.h, -w / 2, -s, w, s);
     ctx.restore();
-    /* 头顶需求气泡 */
-    fillRR(c.x - 23, c.y - s - 30, 46, 20, 10, 'rgba(10,12,15,0.7)');
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffd23f';
-    ctx.font = "bold 13px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillText('× ' + c.demand, c.x, c.y - s - 16);
+    /* 头顶需求气泡(结算后不再显示) */
+    if (!c.resolved) {
+      fillRR(c.x - 23, c.y - s - 30, 46, 20, 10, 'rgba(10,12,15,0.7)');
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffd23f';
+      ctx.font = "bold 13px 'PingFang SC','Microsoft YaHei',sans-serif";
+      ctx.fillText('× ' + c.demand, c.x, c.y - s - 16);
+    }
+    ctx.globalAlpha = 1;
   }
 }
