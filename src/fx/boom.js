@@ -5,8 +5,8 @@
 /* global assets, IMG, ctx, SFX */
 
 const boomParts = [];
-function spawnBoom(x, y, frame) {
-  SFX.play('boom'); // 撞击音
+function spawnBoom(x, y, frame, silent) {
+  if (!silent) SFX.play('boom'); // 撞击音(存在界面演示时静音)
   if (!assets.boom) return;
   boomParts.push({
     x,

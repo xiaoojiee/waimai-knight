@@ -3,7 +3,7 @@
 /* 逆行大运 Boss: 迎面驶来 + 左右变道; 玩家撞击磨血, 引警车撞爆发伤害;
  * 存活时限内未击败则向下方开走; 击败掉落金钱与外卖(外卖量按玩家受伤推算) */
 
-/* global game, assets, IMG, PX_PER_M, player, police, enemies, pickups, ctx, fillRR, H, W, ROAD, clamp, addFloatText, damagePlayer, spawnBoom, makeFood, launchEnemy, dropFood, HEAL_AMT, DMG_FRONT, BOSS_HP, BOSS_RAM_DMG, BOSS_RAM_CD, BOSS_POLICE_DMG, BOSS_SIZE, BOSS_DEFAULT_Y, BOSS_LANE_INTERVAL_MIN, BOSS_LANE_INTERVAL_MAX, BOSS_LANE_SPEED, BOSS_CHARGE_INTERVAL_MIN, BOSS_CHARGE_INTERVAL_MAX, BOSS_CHARGE_SPEED, BOSS_TIME, BOSS_DELAY_FIRST_M, BOSS_INTERVAL_MIN_M, BOSS_INTERVAL_MAX_M, BOSS_SPAWN_CHANCE, BOSS_MONEY, BOSS_SCALE_PER_DIFF, difficulty, contentSize, detectSpriteBox */
+/* global game, assets, IMG, PX_PER_M, player, police, enemies, pickups, ctx, fillRR, H, W, ROAD, clamp, addFloatText, damagePlayer, spawnBoom, makeFood, launchEnemy, dropFood, HEAL_AMT, DMG_FRONT, BOSS_HP, BOSS_RAM_CD, BOSS_POLICE_DMG, vehicleDef, DASH_DEALT_MUL, BOSS_SIZE, BOSS_DEFAULT_Y, BOSS_LANE_INTERVAL_MIN, BOSS_LANE_INTERVAL_MAX, BOSS_LANE_SPEED, BOSS_CHARGE_INTERVAL_MIN, BOSS_CHARGE_INTERVAL_MAX, BOSS_CHARGE_SPEED, BOSS_TIME, BOSS_DELAY_FIRST_M, BOSS_INTERVAL_MIN_M, BOSS_INTERVAL_MAX_M, BOSS_SPAWN_CHANCE, BOSS_MONEY, BOSS_SCALE_PER_DIFF, difficulty, contentSize, detectSpriteBox */
 
 let boss = null; // { x, y, hp, maxHp, scale, lane, laneTimer, state, time, flash, ramCd, dmgTaken }
 let nextBossDist = BOSS_DELAY_FIRST_M * PX_PER_M;
@@ -171,7 +171,14 @@ function updateBoss(dt) {
     }
     if (b.ramCd <= 0) {
       b.ramCd = BOSS_RAM_CD;
-      b.hp = Math.max(0, b.hp - BOSS_RAM_DMG);
+      /* 撞击伤害 = 玩家前撞伤害 × 载具撞击倍率(冲刺时 ×DASH_DEALT_MUL), 与撞敌骑手一致 */
+      const ramDmg = Math.max(
+        1,
+        Math.round(
+          DMG_FRONT * (vehicleDef().damageMul || 1) * (player.buff.dash > 0 ? DASH_DEALT_MUL : 1),
+        ),
+      );
+      b.hp = Math.max(0, b.hp - ramDmg);
       b.flash = 0.15;
       spawnBoom((player.x + b.x) / 2, (player.y + b.y) / 2);
       if (b.hp <= 0) {

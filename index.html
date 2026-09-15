@@ -45,11 +45,12 @@
           0 0 0 1px #2a2f36,
           0 24px 80px rgba(0, 0, 0, 0.55);
         touch-action: none; /* 禁止浏览器手势, 保证拖动跟手 */
+        outline: none; /* 键盘焦点态不显示描边 */
       }
     </style>
   </head>
   <body>
-    <canvas id="game"></canvas>
+    <canvas id="game" tabindex="0"></canvas>
     <!-- B站 Toy JS SDK 由 src/core/toy.js 异步动态加载, 避免阻塞页面 -->
     <!-- 经典 script 按依赖顺序加载(共享全局作用域), 保持 file:// 双击可玩 -->
     <script src="src/core/utils.js"></script>
@@ -63,6 +64,7 @@
     <script src="src/fx/smoke.js"></script>
     <script src="src/fx/boom.js"></script>
     <script src="src/fx/floattext.js"></script>
+    <script src="src/fx/menuact.js"></script>
     <script src="src/entities/player.js"></script>
     <script src="src/entities/enemy.js"></script>
     <script src="src/entities/pickup.js"></script>

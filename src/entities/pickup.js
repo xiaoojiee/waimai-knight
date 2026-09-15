@@ -107,14 +107,18 @@ function oldestNonSpecialIndex() {
 /* 血量低且下一个外卖无毒时, 自动食用(每 0.5s 一次) */
 let autoHealT = 0;
 function updateAutoHeal(dt) {
+  /* 跑车同样自动回血 —— 只是走「金钱回血」分支(useFood 内部按车判断) */
   if (game.over || player.hp >= player.maxHp * AUTO_HEAL_THRESHOLD) {
     autoHealT = 0;
     return;
   }
-  const i = oldestNonSpecialIndex();
-  if (i < 0 || player.food[i].poison) {
-    autoHealT = 0; // 没外卖 / 下一个有毒 → 不自动吃
-    return;
+  /* 只能花钱回血的载具(跑车): 不看外卖, 直接走金钱回血; 其余载具要求有可吃的无毒外卖 */
+  if (!vehicleDef().payHealCost) {
+    const i = oldestNonSpecialIndex();
+    if (i < 0 || player.food[i].poison) {
+      autoHealT = 0; // 没外卖 / 下一个有毒 → 不自动吃
+      return;
+    }
   }
   autoHealT -= dt;
   if (autoHealT <= 0) {
@@ -130,11 +134,24 @@ function activeEat() {
 }
 
 /* 食用最下方(最早捡的)非特殊外卖; 有毒则扣血
- * force = true 时满血也吃(用于牛来主动触发冲刺) */
+ * force = true 时满血也吃(用于牛来主动触发冲刺)
+ * 配了 payHealCost 的载具(跑车)回血只能花钱 —— 不吃外卖, 走下面的金钱回血分支 */
 function useFood(force) {
-  if (player.food.length <= 0 || game.over) return;
-  const i = oldestNonSpecialIndex();
-  if (i < 0) return;
+  if (game.over) return;
+  const payOnly = !!vehicleDef().payHealCost;
+  const i = payOnly ? -1 : oldestNonSpecialIndex();
+  if (i < 0) {
+    const def = vehicleDef();
+    const cost = def.payHealCost || 0;
+    if (cost <= 0 || player.money < cost || player.hp >= player.maxHp) return;
+    const amt = def.payHealAmt || 30;
+    player.money -= cost;
+    player.hp = Math.min(player.maxHp, player.hp + amt);
+    player.healFlash = 0.4;
+    addFloatText(player.x, player.y - player.height / 2, '+' + amt + ' HP -$' + cost, '#4ade80');
+    SFX.play('heal');
+    return;
+  }
   const item = player.food[i];
   if (!item.poison && !force && player.hp >= player.maxHp) return; // 满血不吃普通外卖, 避免浪费
   player.food.splice(i, 1);

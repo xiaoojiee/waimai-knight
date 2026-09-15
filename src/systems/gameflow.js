@@ -2,7 +2,7 @@
 
 /* 游戏流程: 结束与重新开始 */
 
-/* global game, player, W, H, BASE_SPEED, VEHICLES, enemies, boomParts, smokeParts, pickups, floatTexts, START_FOOD, CUSTOMER_DELAY_FIRST_M, PX_PER_M, SHOP_DELAY_FIRST_M, REST_DELAY_FIRST_M, ZONE_DELAY_FIRST_M, zoneSigns, police, bullets, slashFX, spawnBoom, spawnSmokeAt, makeFood, applyVehicle, thrownFood, roadFoodTimer:writable, screenMsg, SFX, Toy, customers, nextCustomerDist:writable, shops, nextShopDist:writable, restaurants, nextRestDist:writable, zone:writable, nextZoneDist:writable, crimeCool:writable, policeTimer:writable, spikeStrip:writable, spikeTimer:writable, enemyTimer:writable, boss:writable, nextBossDist:writable, BOSS_DELAY_FIRST_M */
+/* global game, player, W, H, BASE_SPEED, VEHICLES, enemies, boomParts, smokeParts, pickups, floatTexts, START_FOOD, START_MONEY, CUSTOMER_DELAY_FIRST_M, PX_PER_M, SHOP_DELAY_FIRST_M, REST_DELAY_FIRST_M, ZONE_DELAY_FIRST_M, zoneSigns, police, bullets, slashFX, spawnBoom, spawnSmokeAt, makeFood, applyVehicle, thrownFood, roadFoodTimer:writable, screenMsg, SFX, Toy, customers, nextCustomerDist:writable, shops, nextShopDist:writable, restaurants, nextRestDist:writable, zone:writable, nextZoneDist:writable, crimeCool:writable, policeTimer:writable, spikeStrip:writable, spikeTimer:writable, enemyTimer:writable, boss:writable, nextBossDist:writable, BOSS_DELAY_FIRST_M */
 
 function gameOver() {
   if (!game.overReason) game.overReason = 'hp';
@@ -54,7 +54,7 @@ function resetGame() {
   floatTexts.length = 0;
   player.food = Array.from({ length: START_FOOD }, () => makeFood());
   player.foodLag = [];
-  player.money = 0;
+  player.money = START_MONEY;
   player.healFlash = 0;
   customers.length = 0;
   nextCustomerDist = CUSTOMER_DELAY_FIRST_M * PX_PER_M;

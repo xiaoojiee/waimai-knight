@@ -2,12 +2,25 @@
 
 /* 水泥区店铺(卖装备)与饭店(卖外卖); 均可同时存在多个 */
 
-/* global game, assets, PX_PER_M, SHOP_DELAY_FIRST_M, SHOP_INTERVAL_MIN_M, SHOP_INTERVAL_MAX_M, WEAPONS, SHOP_FRAMES, player, addFloatText, REST_DELAY_FIRST_M, REST_INTERVAL_MIN_M, REST_INTERVAL_MAX_M, FOOD_BUY_PRICE, FOOD_BUNDLE, ctx, fillRR, H, IMG, CEMENT_X, W, difficulty, makeFood, damagePlayer, spawnBoom, SHOP_RAM_DMG, vehicleDef, GROUND_SCROLL_MUL */
+/* global game, assets, PX_PER_M, SHOP_DELAY_FIRST_M, SHOP_INTERVAL_MIN_M, SHOP_INTERVAL_MAX_M, WEAPONS, SHOP_FRAMES, player, addFloatText, REST_DELAY_FIRST_M, REST_INTERVAL_MIN_M, REST_INTERVAL_MAX_M, FOOD_BUY_PRICE, FOOD_BUNDLE, SHOP_PRICE_PER_DIFF, ctx, fillRR, H, IMG, CEMENT_X, W, difficulty, makeFood, damagePlayer, spawnBoom, SHOP_RAM_DMG, vehicleDef, GROUND_SCROLL_MUL */
 
 const shops = []; // 多个店铺 { type, x, y, fly, vx, vy, rot, spin, life }
 let nextShopDist = SHOP_DELAY_FIRST_M * PX_PER_M; // 下一个店铺出现的距离阈值(px)
 const SHOP_HIT_R = 70;
 const SHOP_SIZE = 160;
+
+/* 价格倍率: 随里程缓慢提升(无上限) */
+function shopScale() {
+  return 1 + difficulty() * SHOP_PRICE_PER_DIFF;
+}
+/* 饭店一次给的外卖数量(随里程增加) */
+function restBundle() {
+  return Math.max(1, Math.round(FOOD_BUNDLE * shopScale()));
+}
+/* 饭店一次的总价(数量变多 → 总价也涨) */
+function restCost() {
+  return FOOD_BUY_PRICE * restBundle();
+}
 
 function hitBuilding(b) {
   if (!b || b.fly) return false;
@@ -71,7 +84,7 @@ function scheduleShop() {
   nextShopDist = game.totalDist + m * PX_PER_M;
 }
 function updateShop(dt) {
-  if (!game.over && assets.item && game.totalDist >= nextShopDist) {
+  if (!game.over && assets.shop && game.totalDist >= nextShopDist) {
     spawnShop();
     scheduleShop();
   }
@@ -97,7 +110,7 @@ function healOnBuy() {
 
 function ramShop(s) {
   const def = WEAPONS[s.type];
-  const price = def.price;
+  const price = Math.round(def.price * shopScale()); // 随里程缓慢涨价
   if (player.money >= price) {
     player.money -= price;
     if (s.type === 'pistol' || s.type === 'rifle') {
@@ -149,7 +162,7 @@ function drawShop() {
       ctx.fillStyle = '#ffd23f';
       ctx.textAlign = 'center';
       ctx.font = "bold 12px 'PingFang SC','Microsoft YaHei',sans-serif";
-      ctx.fillText('$' + def.price, 0, size / 2 + 9);
+      ctx.fillText('$' + Math.round(def.price * shopScale()), 0, size / 2 + 9);
     }
     ctx.restore();
   }
@@ -179,7 +192,7 @@ function scheduleRestaurant() {
   nextRestDist = game.totalDist + m * PX_PER_M;
 }
 function updateRestaurant(dt) {
-  if (!game.over && game.totalDist >= nextRestDist) {
+  if (!game.over && assets.shop && game.totalDist >= nextRestDist) {
     spawnRestaurant();
     scheduleRestaurant();
   }
@@ -195,14 +208,15 @@ function updateRestaurant(dt) {
   }
 }
 function ramRestaurant(r) {
-  const cost = FOOD_BUY_PRICE * FOOD_BUNDLE;
+  const bundle = restBundle(); // 数量随里程增加
+  const cost = restCost(); // 总价随之上涨
   if (player.money >= cost) {
     player.money -= cost;
-    for (let i = 0; i < FOOD_BUNDLE && player.food.length < 99; i++) player.food.push(makeFood());
+    for (let i = 0; i < bundle && player.food.length < 99; i++) player.food.push(makeFood());
     addFloatText(
       player.x,
       player.y - player.height / 2,
-      '+' + FOOD_BUNDLE + ' 外卖 -$' + cost,
+      '+' + bundle + ' 外卖 -$' + cost,
       '#ffd23f',
     );
     healOnBuy();
@@ -231,7 +245,7 @@ function drawRestaurant() {
       ctx.fillStyle = '#ffd23f';
       ctx.textAlign = 'center';
       ctx.font = "bold 12px 'PingFang SC','Microsoft YaHei',sans-serif";
-      ctx.fillText(FOOD_BUNDLE + '个 $' + FOOD_BUY_PRICE * FOOD_BUNDLE, 0, size / 2 + 9);
+      ctx.fillText(restBundle() + '个 $' + restCost(), 0, size / 2 + 9);
     }
     ctx.restore();
   }

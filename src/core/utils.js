@@ -38,8 +38,44 @@ function fillRR(x, y, w, h, r, color) {
   rr(x, y, w, h, r);
   ctx.fill();
 }
-/* 检测贴图非透明内容包围盒(剔除透明留白) */
-function detectSpriteBox(img) {
+/* 两个 #rrggbb 之间按比例混合 */
+function mixHex(a, b, t) {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const ar = (pa >> 16) & 255;
+  const ag = (pa >> 8) & 255;
+  const ab = pa & 255;
+  const br = (pb >> 16) & 255;
+  const bg = (pb >> 8) & 255;
+  const bb = pb & 255;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return '#' + ((1 << 24) | (r << 16) | (g << 8) | bl).toString(16).slice(1);
+}
+/* 渐变按钮底(Steam 风: 斜向渐变 + 顶部柔光)
+ * 两端各向中间靠拢, 降低对比度, 让画面更柔和 */
+function fillBtn(x, y, w, h, r, top, bottom) {
+  const c1 = mixHex(top, bottom, 0.35);
+  const c2 = mixHex(bottom, top, 0.35);
+  const g = ctx.createLinearGradient(x, y, x + w, y + h); // 左上 → 右下
+  g.addColorStop(0, c1);
+  g.addColorStop(1, c2);
+  fillRR(x, y, w, h, r, g);
+  ctx.save();
+  rr(x, y, w, h, r);
+  ctx.clip();
+  const hi = ctx.createLinearGradient(x, y, x + w * 0.6, y + h * 0.75);
+  hi.addColorStop(0, 'rgba(255,255,255,0.13)');
+  hi.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = hi;
+  ctx.fillRect(x, y, w, h);
+  ctx.restore();
+}
+
+/* 检测贴图非透明内容包围盒(剔除透明留白)
+ * frames > 1 时只看第一帧区域, 避免多帧横条把包围盒拉宽 */
+function detectSpriteBox(img, frames) {
   try {
     const c = document.createElement('canvas');
     c.width = img.naturalWidth;
@@ -49,13 +85,14 @@ function detectSpriteBox(img) {
     const d = c2d.getImageData(0, 0, c.width, c.height).data;
     const iw = c.width,
       ih = c.height;
+    const frameW = Math.floor(iw / Math.max(1, frames || 1));
     const s = 4; // 4px 采样
-    let minX = iw,
+    let minX = frameW,
       minY = ih,
       maxX = 0,
       maxY = 0;
     for (let y = 0; y < ih; y += s) {
-      for (let x = 0; x < iw; x += s) {
+      for (let x = 0; x < frameW; x += s) {
         if (d[(y * iw + x) * 4 + 3] > 8) {
           if (x < minX) minX = x;
           if (x > maxX) maxX = x;

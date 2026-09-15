@@ -2,7 +2,7 @@
 
 /* 全局游戏状态: game(流程)/player(玩家)/input(输入)/BOUNDS(活动范围) */
 
-/* global RIDER_SCALE, START_FOOD, W, H, BASE_SPEED, ROAD, makeFood, VEHICLES, IMG, SPRITE_BOX */
+/* global RIDER_SCALE, START_FOOD, START_MONEY, W, H, BASE_SPEED, ROAD, makeFood, VEHICLES, IMG, SPRITE_BOX */
 
 const game = {
   distance: 0, // 本圈内滚动距离(px)
@@ -34,7 +34,7 @@ const player = {
   flash: 0, // 受击红闪计时
   food: Array.from({ length: START_FOOD }, () => makeFood()), // 背负的外卖栈(最下方是最早捡的)
   foodLag: [], // 堆叠惯性偏移 { x, y, vx, vy }
-  money: 0, // 金钱
+  money: START_MONEY, // 金钱(开局带 100)
   weapons: {}, // 已持有的道具 { type: { ammo, cd } }, 不同种类可同时存在
   crime: 0, // 犯罪槽 0~100(攒满自动升一级并清零)
   crimeLvl: 1, // 犯罪等级 1~4

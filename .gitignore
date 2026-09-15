@@ -2,4 +2,6 @@ node_modules/
 .claude/
 assets/贴图原图/
 assets/新贴图/
+assets/贴图/步行/
+assets/贴图/火车头/
 *.zip

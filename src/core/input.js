@@ -2,7 +2,7 @@
 
 /* 输入: 键盘(WASD/方向键)+ 手机虚拟摇杆 + 外卖按钮点击 */
 
-/* global canvas, input, W, H, game, startBtn, vehicleBtns, vehicleOpenBtn, vehicleBackBtn, resetGame, adjustCrime, grantWeapon, player, addFloatText, PX_PER_M, makeFood, makeSpecialFood, applySpecialEffect, VEHICLES, applyVehicle, eatBtn, throwBtn, throwFood, activeEat, ready, SFX, pauseBtn, soundBtn, pauseHomeBtn, spawnInitialEnemies, INITIAL_ENEMIES, spawnBoss, rankOpenBtn, rankRefreshBtn, mockBtns, markPress, Toy, refreshUnlocks, isVehicleUnlocked, loadRank, vehicleHomeBtn, vehicleVideoBtn */
+/* global canvas, input, W, H, game, startBtn, vehicleBtns, vehicleOpenBtn, vehicleBackBtn, resetGame, adjustCrime, grantWeapon, player, addFloatText, PX_PER_M, makeFood, makeSpecialFood, applySpecialEffect, VEHICLES, applyVehicle, eatBtn, throwBtn, throwFood, activeEat, ready, SFX, pauseBtn, soundBtn, pauseHomeBtn, spawnInitialEnemies, INITIAL_ENEMIES, spawnBoss, rankOpenBtn, rankRefreshBtn, mockBtns, markPress, uiHover, clearMenuActors, Toy, refreshUnlocks, isVehicleUnlocked, loadRank, vehicleHomeBtn, vehicleVideoBtn */
 
 const KEYMAP = {
   ArrowLeft: 'left',
@@ -162,6 +162,7 @@ canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   if (!ready) return; // 加载中屏蔽输入
   SFX.unlock(); // 用户交互, 解锁音频
+  canvas.focus(); // 让画布拿到焦点(内嵌 iframe / B站容器里键盘才收得到)
   if (!game.started) {
     const p = toLogical(e);
     const hit = (b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
@@ -223,7 +224,9 @@ canvas.addEventListener('pointerdown', (e) => {
       if (hit(startBtn)) {
         markPress(startBtn);
         game.started = true;
+        clearMenuActors(); // 清掉开场演示角色
         applyVehicle(player.vehicle);
+        player.y = H * 0.66; // 从开始界面的展示位回到正常出发位置
         spawnInitialEnemies(INITIAL_ENEMIES); // 开局一批敌人
         SFX.play('start');
         return;
@@ -232,6 +235,7 @@ canvas.addEventListener('pointerdown', (e) => {
         markPress(vehicleOpenBtn);
         game.menuScreen = 'vehicle';
         refreshUnlocks(); // 刷新解锁状态
+        Toy.loadMedia(); // 拉取 UP 头像 / 视频封面(与 BV/UID 同步)
         return;
       }
       if (hit(rankOpenBtn)) {
@@ -292,7 +296,31 @@ canvas.addEventListener('pointerdown', (e) => {
     }
   }
 });
+/* 当前界面下, 指针是否落在可点按钮上(仅用于鼠标光标样式) */
+function hitAnyButton(p) {
+  const hit = (b) => !!b && p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
+  if (!game.started) {
+    if (game.menuScreen === 'rank') return hit(vehicleBackBtn) || hit(rankRefreshBtn);
+    if (game.menuScreen === 'vehicle') {
+      if (hit(vehicleBackBtn) || hit(vehicleHomeBtn) || hit(vehicleVideoBtn)) return true;
+      if (Toy.isMock() && mockBtns.some(hit)) return true;
+      return Object.keys(VEHICLES).some((t) => hit(vehicleBtns[t]));
+    }
+    return hit(startBtn) || hit(vehicleOpenBtn) || hit(rankOpenBtn);
+  }
+  if (game.over) return false;
+  if (game.paused) return hit(pauseHomeBtn);
+  return hit(pauseBtn) || hit(soundBtn) || hit(eatBtn) || hit(throwBtn);
+}
 canvas.addEventListener('pointermove', (e) => {
+  /* 鼠标: 更新悬停坐标 + 光标样式(触屏无悬停) */
+  if (e.pointerType === 'mouse') {
+    const lp = toLogical(e);
+    uiHover.x = lp.x;
+    uiHover.y = lp.y;
+    uiHover.on = true;
+    canvas.style.cursor = hitAnyButton(lp) ? 'pointer' : 'default';
+  }
   const joy = input.joy;
   if (joy && e.pointerId === joy.id) {
     const p = toLogical(e);
@@ -312,4 +340,8 @@ canvas.addEventListener('pointermove', (e) => {
     if (input.joy && e.pointerId === input.joy.id) input.joy = null;
   }),
 );
+canvas.addEventListener('pointerleave', () => {
+  uiHover.on = false;
+  canvas.style.cursor = 'default';
+});
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());

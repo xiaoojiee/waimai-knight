@@ -10,26 +10,28 @@
 
 const SFX = (() => {
   const BASE = 'assets/音效/';
-  const mk = (file, vol, loop) => {
+  /* lazy = true: 不预加载, 等首次用户交互(unlock)后再拉取;
+   * 大文件(火车头 BGM 1.3MB、台词)延迟加载, 避免开局和贴图抢带宽 */
+  const mk = (file, vol, loop, lazy) => {
     const a = new Audio(BASE + file);
-    a.preload = 'auto';
+    a.preload = lazy ? 'none' : 'auto';
     if (vol != null) a.volume = vol;
     if (loop) a.loop = true;
     return a;
   };
 
-  const hitSnd = mk('撞击音效.mp3', 0.55); // 撞击
+  const hitSnd = mk('撞击音效.mp3', 0.55); // 撞击(小, 立即加载)
   const footSnd = mk('脚步.mp3', 0.45); // 脚步
   const bgmNormal = mk('背景音乐.mp3', 0.12, true); // 背景音乐
-  const bgmTrain = mk('火车头.mp3', 0.12, true); // 火车头背景音乐
+  const bgmTrain = mk('火车头.mp3', 0.12, true, true); // 火车头背景音乐(1.3MB, 延迟)
   /* 台词/特殊音 */
   const voiceEls = {
-    brave: mk('我超勇的.mp3', 1), // 我超勇的
-    melon: mk('我开水果摊的能卖给你生瓜蛋子.mp3', 1), // 水果摊
-    eat: mk('焖子.mp3', 1), // 焖子
-    soup: mk('鸡汤来咯.mp3', 1), // 鸡汤来咯
-    weak: mk('弱欸.mp3', 1), // 勇猛撞敌
-    seed: mk('生瓜蛋子.mp3', 1), // 丢西瓜
+    brave: mk('我超勇的.mp3', 1, false, true), // 我超勇的
+    melon: mk('我开水果摊的能卖给你生瓜蛋子.mp3', 1, false, true), // 水果摊
+    eat: mk('焖子.mp3', 1, false, true), // 焖子
+    soup: mk('鸡汤来咯.mp3', 1, false, true), // 鸡汤来咯
+    weak: mk('弱欸.mp3', 1, false, true), // 勇猛撞敌
+    seed: mk('生瓜蛋子.mp3', 1, false, true), // 丢西瓜
   };
   /* 行驶嗡鸣(回退 <audio>) */
   const driveUrl = { mid: BASE + '汽车行驶-中频嗡鸣.mp3', low: BASE + '汽车行驶-低频嗡鸣.mp3' };
@@ -42,6 +44,7 @@ const SFX = (() => {
   let useBuffer = true;
   let buffersRequested = false;
   let bgmCurrent = null;
+  let unlockedOnce = false; // 首次交互只做一次解锁+预加载
 
   let lastHit = 0;
   let enabled = true;
@@ -254,10 +257,14 @@ const SFX = (() => {
   function unlock() {
     ensure();
     resume();
+    if (unlockedOnce) return; // 只需解锁一次
+    unlockedOnce = true;
     loadDriveBuffers();
     const all = [hitSnd, footSnd, bgmNormal, bgmTrain];
     for (const k in voiceEls) all.push(voiceEls[k]);
     for (const a of all) {
+      /* 延迟加载的元素在此刻(贴图已就绪)才真正开始拉取 */
+      if (a.preload === 'none') a.load();
       if (a.paused) {
         a.muted = true;
         a.play()

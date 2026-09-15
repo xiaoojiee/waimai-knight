@@ -22,7 +22,7 @@
 
 /* 主循环: update/render + 道路贴图滚动 */
 
-/* global game, player, input, BASE_SPEED, SPEED_MIN, clamp, BOUNDS, vehicleDef, pace, softCap, updateSmoke, updateSmokeParticles, updateEnemies, updateEnemyBullets, collide, updateWeapon, updateBoom, updatePickups, updateThrownFood, updateAutoHeal, updateCustomer, updateShop, updateRestaurant, updateZone, updateCrime, updatePolice, updateSpike, updateBoss, spawnSmokeAt, spawnWalkDust, updateDust, updateFloatTexts, updateFoodLag, ctx, dpr, W, H, LOOP, JOY_RADIUS, drawZone, drawSpike, drawSmoke, drawDust, drawCustomer, drawShop, drawRestaurant, drawEnemies, drawEnemyBullets, drawPolice, drawBoss, drawPickups, drawThrownFood, drawBullets, drawOrbitWeapons, drawPlayer, drawWeapon, drawBoom, drawJoy, drawHUD, drawFloatTexts, drawGameOver, drawMenu, drawScreenMsg, drawPause, drawLoading, ready, assets, IMG, TILE_H, GROUND_SCROLL_MUL, screenMsg, checkReady, SFX, nearestThrowTarget, throwMelon, BRAVE_SPEED_MUL, MELON_CD, DASH_SPEED_MUL, TRAIN_DRAIN_BASE, TRAIN_DRAIN_SPEED_REF, TRAIN_DRAIN_TIME_RATE, gameOver */
+/* global game, player, input, BASE_SPEED, SPEED_MIN, clamp, BOUNDS, ROAD, vehicleDef, pace, softCap, updateSmoke, updateSmokeParticles, updateEnemies, updateEnemyBullets, collide, collideEnemies, updateWeapon, updateMenuActors, drawMenuActors, updateBoom, updatePickups, updateThrownFood, updateAutoHeal, updateCustomer, updateShop, updateRestaurant, updateZone, updateCrime, updatePolice, updateSpike, updateBoss, spawnSmokeAt, spawnWalkDust, updateDust, updateFloatTexts, updateFoodLag, ctx, dpr, W, H, LOOP, JOY_RADIUS, drawZone, drawSpike, drawSmoke, drawDust, drawCustomer, drawShop, drawRestaurant, drawEnemies, drawEnemyBullets, drawPolice, drawBoss, drawPickups, drawThrownFood, drawBullets, drawOrbitWeapons, drawPlayer, drawWeapon, drawBoom, drawJoy, drawHUD, drawFloatTexts, drawGameOver, drawMenu, drawScreenMsg, drawPause, drawLoading, ready, assets, IMG, TILE_H, GROUND_SCROLL_MUL, screenMsg, checkReady, SFX, nearestThrowTarget, throwMelon, BRAVE_SPEED_MUL, MELON_CD, DASH_SPEED_MUL, TRAIN_DRAIN_BASE, TRAIN_DRAIN_SPEED_REF, TRAIN_DRAIN_TIME_RATE, gameOver */
 
 let footT = 0; // 脚步音计时
 
@@ -39,8 +39,30 @@ function update(dt) {
   if (screenMsg.life > 0) screenMsg.life -= dt;
 
   if (!game.started) {
-    /* 开始界面: 游戏完全暂停 */
-    SFX.drive(player.vehicle, game.speed, false);
+    /* 开始界面: 背景按当前载具速度滚动 + 角色居中原地骑行 + 扬尘/烟雾 */
+    const mdef = vehicleDef();
+    game.speed = mdef.baseSpeed; // 供烟雾/扬尘的速度使用
+    game.distance = (game.distance + mdef.baseSpeed * GROUND_SCROLL_MUL * dt) % TILE_H;
+    player.x = ROAD.left + ROAD.width / 2; // 居中在马路中间
+    player.y = H * 0.375; // 放在标题与开始按钮之间的空档, 避免被按钮遮住
+    player.animTimer += dt;
+    /* 迈步/切帧动画(独立于烟雾类型, 否则火车头这类 smoke=continuous 的不会有动画) */
+    if (mdef.anim === 'step' || mdef.anim === 'bob') {
+      const iv = mdef.stepInterval || 0.4;
+      while (player.animTimer >= iv) {
+        player.animTimer -= iv;
+        if (mdef.anim === 'step') player.animFrame = (player.animFrame + 1) % mdef.frames;
+        spawnWalkDust();
+      }
+    }
+    updateSmokeParticles(dt);
+    updateBoom(dt); // 碰撞火花需要更新才会消失
+    if (mdef.smoke === 'continuous') updateSmoke(dt);
+    else if (mdef.smoke === 'dust') updateDust(dt);
+    /* 开场演示: 敌方骑手 / 警车 / 大运 互相碰撞 */
+    updateMenuActors(dt);
+    game.shake = Math.max(0, game.shake - dt);
+    SFX.drive(player.vehicle, mdef.baseSpeed, false);
     SFX.bgm(player.vehicle, false);
     return;
   }
@@ -199,6 +221,7 @@ function update(dt) {
   updateEnemies(dt);
   updateEnemyBullets(dt);
   collide();
+  collideEnemies(); // 敌方骑手之间互相碰撞
   updateWeapon(dt);
   updateBoom(dt);
   updatePickups(dt);
@@ -264,6 +287,7 @@ function render() {
   drawEnemies(); // 敌方骑手
   drawEnemyBullets(); // 敌方子弹
   drawPolice(); // 警车
+  drawMenuActors(); // 开始界面演示(敌方/警车/大运混战)
   drawBoss(); // 逆行大运(Boss)
   drawPickups(); // 外卖掉落
   drawThrownFood(); // 投掷中的外卖

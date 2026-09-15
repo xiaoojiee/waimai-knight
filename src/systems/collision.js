@@ -80,3 +80,59 @@ function collide() {
     e.pass = true; // 本次接触只结算一次, 之后穿行滑过
   }
 }
+
+/* 敌方骑手之间互相碰撞: 与玩家碰撞一致 —— 结算伤害 + 撞击特效 + 双方弹开
+ * 数量上限约 15, 两两检测开销可忽略 */
+function collideEnemies() {
+  for (let i = 0; i < enemies.length; i++) {
+    const a = enemies[i];
+    if (a.dead || a.dying || a.eaten) continue;
+    for (let j = i + 1; j < enemies.length; j++) {
+      const b = enemies[j];
+      if (b.dead || b.dying || b.eaten) continue;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const rx = (a.cw + b.cw) * 0.42; // 可见内容半径之和(略微内收)
+      const ry = (a.ch + b.ch) * 0.4;
+      if (Math.abs(dx) >= rx || Math.abs(dy) >= ry) continue;
+      const ox = rx - Math.abs(dx);
+      const oy = ry - Math.abs(dy);
+      const dirX = dx >= 0 ? 1 : -1;
+      const dirY = dy >= 0 ? 1 : -1;
+      /* 位置分离(各推一半), 避免互相穿模 */
+      if (ox < oy) {
+        a.x -= (dirX * ox) / 2;
+        b.x += (dirX * ox) / 2;
+      } else {
+        a.y -= (dirY * oy) / 2;
+        b.y += (dirY * oy) / 2;
+      }
+      /* 伤害: 侧面互伤; 前后追尾时前方承受更多(与玩家碰撞一致) */
+      const isSide = oy > ox;
+      const aFront = a.y < b.y; // y 更小 = 更靠前
+      let dmgA;
+      let dmgB;
+      if (isSide) {
+        dmgA = DMG_SIDE;
+        dmgB = DMG_SIDE;
+      } else if (aFront) {
+        dmgA = DMG_FRONT;
+        dmgB = DMG_REAR;
+      } else {
+        dmgA = DMG_REAR;
+        dmgB = DMG_FRONT;
+      }
+      const hitA = damageEnemy(a, dmgA, false); // 各自受击冷却内只结算一次
+      const hitB = damageEnemy(b, dmgB, false);
+      if (hitA || hitB) {
+        /* 弹开 + 撞击特效 */
+        a.kbx -= dirX * 200;
+        b.kbx += dirX * 200;
+        a.kby -= dirY * 240;
+        b.kby += dirY * 240;
+        spawnBoom((a.x + b.x) / 2, (a.y + b.y) / 2);
+        game.shake = Math.max(game.shake, 0.18);
+      }
+    }
+  }
+}

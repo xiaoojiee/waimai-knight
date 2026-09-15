@@ -42,6 +42,7 @@ const FOOD_SIZE = 31; // 外卖掉落绘制尺寸
 const FOOD_STACK_PX = 23; // 背上堆叠外卖尺寸(px, 各载具统一)
 const ENEMY_DIE_TIME = 0.9; // 敌人倒下动画时长(秒)
 const START_FOOD = 3; // 初始外卖数量
+const START_MONEY = 100; // 开局金钱
 /* 2×2 四宫格图集 */
 const FOOD_FRAMES = [
   [0, 0],
@@ -138,6 +139,8 @@ const SHOP_INTERVAL_MIN_M = 100; // 店铺间隔下限(米)
 const SHOP_INTERVAL_MAX_M = 200; // 店铺间隔上限(米)
 const FOOD_BUY_PRICE = 10; // 饭店购买单个外卖的价格
 const FOOD_BUNDLE = 5; // 饭店一次购买的外卖数量(一家只卖一次)
+/* 店铺价格随里程缓慢提升(无上限): 每 1 点难度(2000m) 价格 +SHOP_PRICE_PER_DIFF */
+const SHOP_PRICE_PER_DIFF = 0.35;
 const REST_DELAY_FIRST_M = 120; // 开局行驶多远后出现第一家饭店(米)
 const REST_INTERVAL_MIN_M = 130; // 饭店间隔下限(米)
 const REST_INTERVAL_MAX_M = 260; // 饭店间隔上限(米)
@@ -182,10 +185,10 @@ const VEHICLES = {
     desc: '腿着跑',
     unlock: 'free',
     img: 'walk',
-    frames: 1,
-    anim: 'bob', // 单图上下抖动模拟步行
-    stepInterval: 0.4, // 每步间隔(秒)
-    bobAmp: 5, // 上下抖动幅度(px)
+    frames: 5, // 横向 5 帧奔跑序列帧(单帧 99×160)
+    anim: 'step', // 切帧奔跑动画
+    stepInterval: 0.14, // 每帧间隔(秒)
+    bobAmp: 5, // (切帧模式下不生效, 保留)
     scale: 1,
     maxDim: 44,
     baseH: 90,
@@ -261,8 +264,9 @@ const VEHICLES = {
     moveSpeed: 360,
     brake: 1,
     damageMul: 0.8, // 伤害降低
-    healMul: 0.7, // 吃外卖回血量(仍低于正常 1.0)
-    buyHeal: 30, // 购买物品时回复血量
+    /* 跑车回血只能花钱: 不吃外卖、买东西也不送血 */
+    payHealCost: 20, // 金钱回血: 花费
+    payHealAmt: 30, // 金钱回血: 回复量
     foodY: -0.1,
     foodGap: 0.2,
     smoke: 'continuous',
@@ -275,8 +279,9 @@ const VEHICLES = {
     desc: '心脏还有点问题',
     unlock: 'follow',
     img: 'train',
-    frames: 1,
-    anim: 'none',
+    frames: 6, // 横向 6 帧奔跑序列帧(单帧 109×160)
+    anim: 'step', // 切帧奔跑动画
+    stepInterval: 0.08, // 每帧间隔(秒) —— 火车头跑得快
     scale: 1,
     maxDim: 44,
     baseH: 90,
@@ -313,9 +318,8 @@ const DASH_DEALT_MUL = 3; // 冲刺时撞击敌人伤害倍率
 const DASH_TAKEN_MUL = 0.3; // 冲刺时受到伤害倍率
 
 /* ===== 逆行大运 Boss ===== */
-const BOSS_HP = 100; // 血量(基础值, 随里程按 BOSS_SCALE_PER_DIFF 提升)
-const BOSS_RAM_DMG = 20; // 玩家每次撞 Boss 扣血
-const BOSS_RAM_CD = 0.4; // 玩家撞 Boss 冷却(秒)
+const BOSS_HP = 200; // 血量(基础值, 随里程按 BOSS_SCALE_PER_DIFF 提升)
+const BOSS_RAM_CD = 0.4; // 玩家撞 Boss 冷却(秒); 伤害用玩家自身撞击伤害(前撞 × 载具倍率)
 const BOSS_POLICE_DMG = 120; // 警车撞 Boss 扣血(大量)
 const BOSS_SIZE = 200; // 绘制高度(px)
 const BOSS_DEFAULT_Y = 10; // 默认悬停的固定屏幕 y(相对屏幕静止, 只露出车头)
@@ -336,4 +340,4 @@ const BOSS_SCALE_PER_DIFF = 1;
 
 /* ===== UP 主信息 / 开发视频(载具选择页右侧展示) ===== */
 const AUTHOR_NAME = '火山哥哥'; // UP 主昵称(展示用)
-const VIDEO_TITLE = '我把「牛来」做成了游戏！点击即玩中国牛能飞！'; // 开发视频标题
+const VIDEO_TITLE = '点击即玩最战斗爽的牛来救妈游戏！没有bug，全是特性！'; // 开发视频标题(取不到接口时的兜底)
